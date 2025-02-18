@@ -13,9 +13,15 @@
     "deploy:mainnet": "cd hardhat && npx hardhat run scripts/deploy.ts --network base"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@tanstack/query-core": "^5.66.4",
+    "@tanstack/react-query": "^5.66.7",
+    "@web3modal/wagmi": "^5.1.11",
     "next": "15.1.7",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.5.2",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
