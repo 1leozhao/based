@@ -21,13 +21,13 @@ interface EditorState {
 const defaultCode = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-contract BaseIDE {
+contract Based {
     // Your code here
 }`;
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   code: defaultCode,
-  fileName: 'BaseIDE.sol',
+  fileName: 'Based.sol',
   isModified: false,
   history: [defaultCode],
   historyIndex: 0,

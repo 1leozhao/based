@@ -86,7 +86,7 @@ export default function Navbar() {
     { label: 'Documentation' },
     { label: 'Keyboard Shortcuts', shortcut: '⌘K ⌘S' },
     { divider: true as const },
-    { label: 'About BaseIDE' },
+    { label: 'About Based' },
   ];
 
   return (
@@ -101,7 +101,7 @@ export default function Navbar() {
       <div className="h-full px-4 flex items-center justify-between">
         <div className="flex items-center space-x-8">
           <Link href="/" className="text-xl font-bold text-gradient">
-            BaseIDE
+            Based
           </Link>
           <div className="hidden md:flex space-x-2">
             <Menu label="File" items={fileMenuItems} />
