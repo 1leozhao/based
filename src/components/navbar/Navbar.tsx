@@ -7,7 +7,7 @@ import Menu from './Menu';
 import Settings from './Settings';
 import { useEditorStore } from '@/store/editorStore';
 import { useKeyboardShortcuts } from '@/utils/shortcuts';
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useViewStore } from '@/store/viewStore';
 
 export default function Navbar() {
@@ -16,6 +16,7 @@ export default function Navbar() {
   const { disconnect } = useDisconnect();
   const { newFile, saveFile, undo, redo, compile, deploy, openFile } = useEditorStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mounted, setMounted] = useState(false);
 
   const {
     toggleExplorer,
@@ -26,6 +27,10 @@ export default function Navbar() {
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const displayAddress = address 
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -107,12 +112,14 @@ export default function Navbar() {
         </div>
         
         <div className="flex items-center space-x-4">
-          <button 
-            className="px-4 py-1.5 rounded-lg bg-[var(--primary-color)] hover:bg-blue-600 transition-colors"
-            onClick={handleConnection}
-          >
-            {isConnected ? displayAddress : 'Connect MetaMask'}
-          </button>
+          {mounted && (
+            <button 
+              className="px-4 py-1.5 rounded-lg bg-[var(--primary-color)] hover:bg-blue-600 transition-colors"
+              onClick={handleConnection}
+            >
+              {isConnected ? displayAddress : 'Connect MetaMask'}
+            </button>
+          )}
           <Settings />
         </div>
       </div>

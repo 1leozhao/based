@@ -7,10 +7,15 @@ import { injected } from 'wagmi/connectors';
 
 export default function Settings() {
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const chainId = useChainId();
   const { connect } = useConnect();
   const { isConnected } = useAccount();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -32,6 +37,8 @@ export default function Settings() {
     }
     setIsOpen(false);
   };
+
+  if (!mounted) return null;
 
   return (
     <div className="relative" ref={menuRef}>
