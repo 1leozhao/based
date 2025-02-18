@@ -1,0 +1,43 @@
+{
+  "name": "baseide",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "compile": "cd hardhat && npx hardhat compile",
+    "test": "cd hardhat && npx hardhat test",
+    "deploy:sepolia": "cd hardhat && npx hardhat run scripts/deploy.ts --network base-sepolia",
+    "deploy:mainnet": "cd hardhat && npx hardhat run scripts/deploy.ts --network base"
+  },
+  "dependencies": {
+    "next": "15.1.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@types/chai": "^5.0.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@web3modal/ethereum": "^2.7.1",
+    "@web3modal/react": "^2.7.1",
+    "chai": "^5.2.0",
+    "dotenv": "^16.4.7",
+    "eslint": "^9",
+    "eslint-config-next": "15.1.7",
+    "ethers": "^6.13.5",
+    "hardhat": "^2.22.18",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5",
+    "viem": "^2.23.2",
+    "wagmi": "^2.14.11"
+  }
+}
