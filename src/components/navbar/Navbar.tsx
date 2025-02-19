@@ -14,7 +14,7 @@ export default function Navbar() {
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
-  const { newFile, saveFile, undo, redo, compile, deploy, openFile } = useEditorStore();
+  const { openFiles, activeFileId, newFile, saveFile, undo, redo, compile, deploy } = useEditorStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -50,24 +50,54 @@ export default function Navbar() {
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      await openFile(file);
-      event.target.value = ''; // Reset input
+    if (!file) return;
+
+    const content = await file.text();
+    newFile();
+  };
+
+  const handleSave = () => {
+    if (activeFileId) {
+      saveFile(activeFileId);
+    }
+  };
+
+  const handleUndo = () => {
+    if (activeFileId) {
+      undo(activeFileId);
+    }
+  };
+
+  const handleRedo = () => {
+    if (activeFileId) {
+      redo(activeFileId);
+    }
+  };
+
+  const handleCompile = async () => {
+    if (activeFileId) {
+      await compile();
+    }
+  };
+
+  const handleDeploy = async () => {
+    if (activeFileId) {
+      await deploy();
     }
   };
 
   const fileMenuItems = [
     { label: 'New File', shortcut: '⌘N', onClick: newFile },
     { label: 'Open File...', shortcut: '⌘O', onClick: handleFileOpen },
-    { label: 'Save', shortcut: '⌘S', onClick: saveFile },
+    { label: 'Save', shortcut: '⌘S', onClick: handleSave },
     { divider: true as const },
-    { label: 'Compile', shortcut: '⌘B', onClick: compile },
-    { label: 'Deploy', shortcut: '⌘⇧D', onClick: deploy },
+    { label: 'Compile', shortcut: '⌘B', onClick: handleCompile },
+    { label: 'Deploy', shortcut: '⌘⇧D', onClick: handleDeploy },
   ];
 
   const editMenuItems = [
-    { label: 'Undo', shortcut: '⌘Z', onClick: undo },
-    { label: 'Redo', shortcut: '⌘⇧Z', onClick: redo },
+    { label: 'Undo', shortcut: '⌘Z', onClick: handleUndo },
+    { label: 'Redo', shortcut: '⌘⇧Z', onClick: handleRedo },
     { divider: true as const },
     { label: 'Cut', shortcut: '⌘X' },
     { label: 'Copy', shortcut: '⌘C' },
@@ -82,47 +112,40 @@ export default function Navbar() {
     { label: 'Problems', shortcut: '⌘⇧M', onClick: toggleProblems },
   ];
 
-  const helpMenuItems = [
-    { label: 'Documentation' },
-    { label: 'Keyboard Shortcuts', shortcut: '⌘K ⌘S' },
-    { divider: true as const },
-    { label: 'About Based' },
-  ];
+  if (!mounted) return null;
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-14 bg-[var(--navbar-bg)] border-b border-[var(--border-color)] z-50">
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        accept=".sol"
-        onChange={handleFileChange}
-      />
-      <div className="h-full px-4 flex items-center justify-between">
-        <div className="flex items-center space-x-8">
-          <Link href="/" className="text-xl font-bold text-gradient">
+      <div className="h-full flex items-center justify-between px-4">
+        <div className="flex items-center space-x-4">
+          <Link href="/" className="text-xl font-bold text-[var(--primary-color)]">
             Based
           </Link>
-          <div className="hidden md:flex space-x-2">
+          <div className="flex space-x-2">
             <Menu label="File" items={fileMenuItems} />
             <Menu label="Edit" items={editMenuItems} />
             <Menu label="View" items={viewMenuItems} />
-            <Menu label="Help" items={helpMenuItems} />
           </div>
         </div>
-        
+
         <div className="flex items-center space-x-4">
-          {mounted && (
-            <button 
-              className="px-4 py-1.5 rounded-lg bg-[var(--primary-color)] hover:bg-blue-600 transition-colors"
-              onClick={handleConnection}
-            >
-              {isConnected ? displayAddress : 'Connect MetaMask'}
-            </button>
-          )}
           <NetworkSelector />
+          <button
+            onClick={handleConnection}
+            className="px-4 py-2 rounded-lg bg-[var(--primary-color)] text-white hover:bg-[var(--primary-color-hover)] transition-colors"
+          >
+            {isConnected ? displayAddress : 'Connect Wallet'}
+          </button>
         </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+        accept=".sol,.md,.txt,.json"
+      />
     </nav>
   );
 } 

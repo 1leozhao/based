@@ -6,6 +6,7 @@ import { useWorkspaceStore, type FileNode, type Workspace } from '@/store/worksp
 import { getFileType, getFileIcon } from '@/utils/fileIcons';
 import { getDefaultContent } from '@/utils/templates';
 import ResizeHandle from './ResizeHandle';
+import Dropdown from './Dropdown';
 
 export default function Explorer() {
   const { explorerWidth, setExplorerWidth, openFile } = useEditorStore();
@@ -25,35 +26,21 @@ export default function Explorer() {
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState<string | null>(null);
-  const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const workspaceDropdownRef = useRef<HTMLDivElement>(null);
 
   const currentWorkspace = workspaces.find(w => w.name === activeWorkspace);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      const newWidth = Math.max(150, Math.min(600, e.clientX - 48));
-      setExplorerWidth(newWidth);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (workspaceDropdownRef.current && !workspaceDropdownRef.current.contains(event.target as Node)) {
+        setIsWorkspaceDropdownOpen(false);
+      }
     };
 
-    const handleMouseUp = () => {
-      setIsResizing(false);
-      document.body.style.cursor = '';
-    };
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'ew-resize';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-    };
-  }, [isResizing, setExplorerWidth]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleCreateFile = (parentPath: string[] = []) => {
     setIsCreatingFile(true);
@@ -242,27 +229,35 @@ export default function Explorer() {
   );
 
   const CreateMenu = ({ path = [], position = 'root' }: { path?: string[], position?: 'root' | 'hover' }) => (
-    <div className={`${position === 'hover' ? 'absolute right-0 top-6' : 'absolute right-0 top-full mt-1'} bg-[var(--editor-bg)] rounded border border-[var(--border-color)] shadow-lg z-20`}>
-      <button
-        className="w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] text-[var(--text-primary)] flex items-center space-x-2"
-        onClick={() => {
-          handleCreateFile(path);
-          setShowCreateMenu(null);
-        }}
+    <div className="absolute" style={{ position: 'absolute' }}>
+      <Dropdown
+        isOpen={true}
+        onClose={() => setShowCreateMenu(null)}
+        className={`${position === 'hover' ? 'right-0 top-6' : 'right-0 top-full mt-1'}`}
       >
-        <BlankFileIcon />
-        <span>New File</span>
-      </button>
-      <button
-        className="w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] text-[var(--text-primary)] flex items-center space-x-2 border-t border-[var(--border-color)]"
-        onClick={() => {
-          handleCreateFolder(path);
-          setShowCreateMenu(null);
-        }}
-      >
-        {getFileIcon('folder')}
-        <span>New Folder</span>
-      </button>
+        <div className="divide-y divide-[var(--border-color)]">
+          <button
+            className="w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] text-[var(--text-primary)] flex items-center space-x-2"
+            onClick={() => {
+              handleCreateFile(path);
+              setShowCreateMenu(null);
+            }}
+          >
+            <BlankFileIcon />
+            <span>New File</span>
+          </button>
+          <button
+            className="w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] text-[var(--text-primary)] flex items-center space-x-2"
+            onClick={() => {
+              handleCreateFolder(path);
+              setShowCreateMenu(null);
+            }}
+          >
+            {getFileIcon('folder')}
+            <span>New Folder</span>
+          </button>
+        </div>
+      </Dropdown>
     </div>
   );
 
@@ -275,8 +270,8 @@ export default function Explorer() {
 
       return (
         <div key={uniqueKey} className="relative">
-          {/* Tree structure lines */}
-          {path.map((_, index) => (
+          {/* Tree structure lines - only show for non-root items */}
+          {path.length > 0 && path.map((_, index) => (
             <div
               key={index}
               className="absolute w-px bg-[var(--border-color)]"
@@ -289,7 +284,7 @@ export default function Explorer() {
             />
           ))}
           <div
-            className="flex items-center space-x-2 cursor-pointer text-[var(--text-primary)] hover:text-[var(--primary-color)] relative"
+            className="flex items-center space-x-2 cursor-pointer text-[var(--text-primary)] hover:text-[var(--primary-color)]"
             style={{ paddingLeft: `${path.length * 1.25}rem` }}
             onMouseEnter={() => setHoveredNode(node.name)}
             onMouseLeave={() => {
@@ -297,7 +292,6 @@ export default function Explorer() {
               if (!showCreateMenu) setShowCreateMenu(null);
             }}
           >
-            {/* Remove horizontal tree line */}
             <div className="flex items-center space-x-2" onClick={() => handleFileClick(node)}>
               {getFileIcon(fileType)}
               <span>{node.name}</span>
@@ -324,7 +318,7 @@ export default function Explorer() {
               
               {/* Action buttons on hover */}
               {hoveredNode === node.name && (
-                <div className="flex space-x-1 relative">
+                <div className="flex space-x-1">
                   {node.type === 'folder' && (
                     <button
                       className="p-1 rounded hover:bg-[var(--hover-bg)] text-[var(--text-primary)]"
@@ -401,159 +395,163 @@ export default function Explorer() {
   };
 
   return (
-    <>
-      <div 
-        ref={sidebarRef}
-        className="fixed left-14 top-14 bottom-0 bg-[var(--sidebar-bg)]"
-        style={{ width: `${explorerWidth}px` }}
-      >
-        <div className="h-full overflow-auto">
-          {/* Workspace Selector */}
-          <div className="sticky top-0 p-4 bg-[var(--sidebar-bg)] border-b border-[var(--border-color)]">
-            <div className="flex items-center space-x-2">
-              <button
-                className="flex-1 px-3 py-2 text-sm bg-[var(--editor-bg)] rounded border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-color)] text-[var(--text-primary)] flex items-center justify-between"
-                onClick={() => setIsWorkspaceDropdownOpen(!isWorkspaceDropdownOpen)}
-              >
-                <div className="flex items-center space-x-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                  <span>{activeWorkspace}</span>
-                </div>
+    <div ref={sidebarRef} className="h-full flex flex-col">
+      {/* Workspace Selector */}
+      <div className="p-4 bg-[var(--sidebar-bg)] border-b border-[var(--border-color)]">
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1" ref={workspaceDropdownRef}>
+            <button
+              className="w-full px-3 py-2 text-sm bg-[var(--editor-bg)] rounded border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-color)] text-[var(--text-primary)] flex items-center justify-between"
+              onClick={() => setIsWorkspaceDropdownOpen(!isWorkspaceDropdownOpen)}
+            >
+              <div className="flex items-center space-x-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
-              </button>
-
-              <button
-                className="p-2 rounded hover:bg-[var(--hover-bg)] text-[var(--text-primary)]"
-                onClick={() => setShowCreateMenu(showCreateMenu === 'root' ? null : 'root')}
-                title="Create New"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </button>
-            </div>
+                <span>{activeWorkspace}</span>
+              </div>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
 
             {isWorkspaceDropdownOpen && (
-              <div className="absolute left-4 right-4 mt-1 bg-[var(--editor-bg)] rounded border border-[var(--border-color)] shadow-lg z-20">
-                {workspaces.map(workspace => (
-                  <button
-                    key={workspace.name}
-                    className={`w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] ${
-                      workspace.name === activeWorkspace ? 'text-[var(--primary-color)]' : 'text-[var(--text-primary)]'
-                    }`}
-                    onClick={() => {
-                      setActiveWorkspace(workspace.name);
-                      setIsWorkspaceDropdownOpen(false);
-                    }}
-                  >
-                    {workspace.name}
-                  </button>
-                ))}
-                {isCreatingWorkspace ? (
-                  <form 
-                    onSubmit={handleNameSubmit}
-                    className="px-3 py-2 border-t border-[var(--border-color)]"
-                  >
-                    <input
-                      type="text"
-                      value={newFileName}
-                      onChange={(e) => setNewFileName(e.target.value)}
-                      placeholder="New workspace name"
-                      className="w-full px-2 py-1 text-sm bg-[var(--editor-bg)] rounded border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-color)] text-[var(--text-primary)]"
-                      autoFocus
-                      onBlur={() => {
-                        setIsCreatingWorkspace(false);
-                        setNewFileName('');
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setIsCreatingWorkspace(false);
-                          setNewFileName('');
-                        }
-                      }}
-                    />
-                  </form>
-                ) : (
-                  <button
-                    className="w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] text-[var(--text-primary)] border-t border-[var(--border-color)] flex items-center space-x-2"
-                    onClick={handleCreateWorkspace}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span>New Workspace</span>
-                  </button>
-                )}
-              </div>
-            )}
-            {showCreateMenu === 'root' && (
-              <div className="absolute right-4 mt-1">
-                <CreateMenu />
+              <div className="absolute left-0 right-0" style={{ position: 'absolute' }}>
+                <Dropdown 
+                  isOpen={isWorkspaceDropdownOpen}
+                  onClose={() => setIsWorkspaceDropdownOpen(false)}
+                  className="w-full mt-1"
+                >
+                  <div className="divide-y divide-[var(--border-color)]">
+                    {workspaces.map(workspace => (
+                      <button
+                        key={workspace.name}
+                        className={`w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] ${
+                          workspace.name === activeWorkspace ? 'text-[var(--primary-color)]' : 'text-[var(--text-primary)]'
+                        }`}
+                        onClick={() => {
+                          setActiveWorkspace(workspace.name);
+                          setIsWorkspaceDropdownOpen(false);
+                        }}
+                      >
+                        {workspace.name}
+                      </button>
+                    ))}
+                    {isCreatingWorkspace ? (
+                      <form 
+                        onSubmit={handleNameSubmit}
+                        className="px-3 py-2"
+                      >
+                        <input
+                          type="text"
+                          value={newFileName}
+                          onChange={(e) => setNewFileName(e.target.value)}
+                          placeholder="New workspace name"
+                          className="w-full px-2 py-1 text-sm bg-[var(--editor-bg)] rounded border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-color)] text-[var(--text-primary)]"
+                          autoFocus
+                          onBlur={() => {
+                            setIsCreatingWorkspace(false);
+                            setNewFileName('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setIsCreatingWorkspace(false);
+                              setNewFileName('');
+                            }
+                          }}
+                        />
+                      </form>
+                    ) : (
+                      <button
+                        className="w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] text-[var(--text-primary)] flex items-center space-x-2"
+                        onClick={handleCreateWorkspace}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        <span>New Workspace</span>
+                      </button>
+                    )}
+                  </div>
+                </Dropdown>
               </div>
             )}
           </div>
 
-          {/* File Tree */}
-          <div className="p-4">
-            {currentWorkspace && (
-              <>
-                {renderFileTree(currentWorkspace.files)}
-                {(isCreatingFile || isCreatingFolder) && currentPath.length === 0 && (
-                  <form 
-                    onSubmit={handleNameSubmit} 
-                    className="flex items-center space-x-2 mt-2"
-                  >
-                    {isCreatingFile ? <BlankFileIcon /> : getFileIcon('folder')}
-                    <input
-                      type="text"
-                      value={newFileName}
-                      onChange={(e) => setNewFileName(e.target.value)}
-                      placeholder={isCreatingFolder ? "folder name" : "filename"}
-                      className="flex-1 px-2 py-1 text-sm bg-[var(--editor-bg)] rounded border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-color)] text-[var(--text-primary)]"
-                      autoFocus
-                      onBlur={() => {
+          <button
+            className="p-2 rounded hover:bg-[var(--hover-bg)] text-[var(--text-primary)]"
+            onClick={() => setShowCreateMenu(showCreateMenu === 'root' ? null : 'root')}
+            title="Create New"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+          </button>
+        </div>
+
+        {showCreateMenu === 'root' && (
+          <div className="absolute right-4" style={{ position: 'absolute' }}>
+            <CreateMenu />
+          </div>
+        )}
+      </div>
+
+      {/* File Tree */}
+      <div className="flex-1 overflow-auto">
+        <div className="p-4">
+          {currentWorkspace && (
+            <>
+              {renderFileTree(currentWorkspace.files)}
+              {(isCreatingFile || isCreatingFolder) && currentPath.length === 0 && (
+                <form 
+                  onSubmit={handleNameSubmit} 
+                  className="flex items-center space-x-2 mt-2"
+                >
+                  {isCreatingFile ? <BlankFileIcon /> : getFileIcon('folder')}
+                  <input
+                    type="text"
+                    value={newFileName}
+                    onChange={(e) => setNewFileName(e.target.value)}
+                    placeholder={isCreatingFolder ? "folder name" : "filename"}
+                    className="flex-1 px-2 py-1 text-sm bg-[var(--editor-bg)] rounded border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-color)] text-[var(--text-primary)]"
+                    autoFocus
+                    onBlur={() => {
+                      setIsCreatingFile(false);
+                      setIsCreatingFolder(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
                         setIsCreatingFile(false);
                         setIsCreatingFolder(false);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setIsCreatingFile(false);
-                          setIsCreatingFolder(false);
-                        }
-                      }}
-                    />
-                  </form>
-                )}
-              </>
-            )}
-          </div>
+                      }
+                    }}
+                  />
+                </form>
+              )}
+            </>
+          )}
         </div>
       </div>
 
       {/* Resize Handle */}
-      <div
-        className="fixed top-14 bottom-0 flex items-center cursor-ew-resize group z-50 hover:z-[100]"
-        style={{
-          left: `${explorerWidth + 48 - 1}px`,
-          width: '2px',
-        }}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsResizing(true);
-        }}
-      >
-        <div 
-          className="h-full w-full transition-colors duration-150" 
-          style={{
-            backgroundColor: isResizing ? 'var(--primary-color)' : 'var(--border-color)',
-          }}
-        />
-      </div>
-    </>
+      <ResizeHandle onResizeStart={(e) => {
+        const startX = e.clientX;
+        const startWidth = explorerWidth;
+
+        const handleMouseMove = (e: MouseEvent) => {
+          const delta = e.clientX - startX;
+          const newWidth = Math.max(200, Math.min(480, startWidth + delta));
+          setExplorerWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }} />
+    </div>
   );
 } 

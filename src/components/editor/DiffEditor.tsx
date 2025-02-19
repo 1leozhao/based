@@ -1,17 +1,22 @@
 import { DiffEditor as MonacoDiffEditor } from '@monaco-editor/react';
 import { useEditorStore } from '@/store/editorStore';
+import { getFileType } from '@/utils/fileIcons';
 
 export default function DiffEditor() {
-  const { code, originalCode, fileName, theme } = useEditorStore();
+  const { openFiles, activeFileId, originalCode, theme } = useEditorStore();
+  const activeFile = openFiles.find(f => f.id === activeFileId);
+  const fileType = activeFile ? getFileType(activeFile.fileName) : 'text';
+
+  if (!activeFile) return null;
 
   return (
     <div className="h-[calc(100vh-8rem)]">
       <MonacoDiffEditor
         height="100%"
-        language="solidity"
+        language={fileType}
         theme={`based-${theme}`}
-        original={originalCode || ''}
-        modified={code}
+        original={originalCode || activeFile.code}
+        modified={activeFile.code}
         options={{
           renderSideBySide: true,
           originalEditable: false,
