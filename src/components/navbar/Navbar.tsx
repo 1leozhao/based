@@ -9,6 +9,8 @@ import { useEditorStore } from '@/store/editorStore';
 import { useKeyboardShortcuts } from '@/utils/shortcuts';
 import { useRef, useState, useEffect } from 'react';
 import { useViewStore } from '@/store/viewStore';
+import BaseLogo from '@/assets/base-logo.svg';
+import Image from 'next/image';
 
 export default function Navbar() {
   const { address, isConnected } = useAccount();
@@ -131,6 +133,17 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center space-x-4">
+          <div className="flex items-center px-3 py-1.5 bg-[#0052FF]/10 rounded-lg">
+            <Image
+              src={BaseLogo}
+              alt="Base Logo"
+              width={20}
+              height={20}
+              className="mr-2"
+            />
+            <span className="text-sm font-medium text-[#0052FF]">Built on Base</span>
+          </div>
+
           <NetworkSelector />
           <button
             onClick={handleConnection}
