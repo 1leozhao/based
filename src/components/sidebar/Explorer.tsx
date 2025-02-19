@@ -2,50 +2,27 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useEditorStore } from '@/store/editorStore';
+import { useWorkspaceStore, type FileNode, type Workspace } from '@/store/workspaceStore';
 import { getFileType, getFileIcon } from '@/utils/fileIcons';
 import { getDefaultContent } from '@/utils/templates';
 import ResizeHandle from './ResizeHandle';
 
-interface FileNode {
-  name: string;
-  type: 'file' | 'folder';
-  children?: FileNode[];
-  content?: string;
-  isExpanded?: boolean;
-}
-
-interface Workspace {
-  name: string;
-  files: FileNode[];
-}
-
 export default function Explorer() {
-  const { newFile, setFileName, setCode, explorerWidth, setExplorerWidth } = useEditorStore();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([
-    {
-      name: 'Default Workspace',
-      files: [
-        {
-          name: 'contracts',
-          type: 'folder',
-          children: [
-            {
-              name: 'Based.sol',
-              type: 'file',
-              content: '// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract Based {\n    // Your code here\n}'
-            }
-          ]
-        }
-      ]
-    }
-  ]);
+  const { explorerWidth, setExplorerWidth, openFile } = useEditorStore();
+  const { 
+    workspaces, 
+    activeWorkspace, 
+    setWorkspaces,
+    setActiveWorkspace,
+    addWorkspace,
+    updateWorkspace
+  } = useWorkspaceStore();
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [isCreatingFile, setIsCreatingFile] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
   const [newFileName, setNewFileName] = useState('');
   const [currentPath, setCurrentPath] = useState<string[]>([]);
-  const [activeWorkspace, setActiveWorkspace] = useState<string>('Default Workspace');
   const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState<string | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -120,7 +97,7 @@ export default function Explorer() {
         return;
       }
 
-      setWorkspaces(prev => [...prev, {
+      addWorkspace({
         name: newName,
         files: [
           {
@@ -129,13 +106,15 @@ export default function Explorer() {
             children: []
           }
         ]
-      }]);
+      });
       setActiveWorkspace(newName);
       setIsCreatingWorkspace(false);
       setNewFileName('');
       setIsWorkspaceDropdownOpen(false);
       return;
     }
+
+    if (!currentWorkspace) return;
 
     // Function to find a node by path
     const findNodeByPath = (nodes: FileNode[], path: string[]): FileNode[] | null => {
@@ -150,8 +129,8 @@ export default function Explorer() {
 
     // Get the target folder using the path
     const targetFolder = currentPath.length === 0 
-      ? currentWorkspace?.files 
-      : findNodeByPath(currentWorkspace?.files || [], currentPath);
+      ? currentWorkspace.files 
+      : findNodeByPath(currentWorkspace.files, currentPath);
 
     if (!targetFolder) {
       alert('Target folder not found');
@@ -167,42 +146,33 @@ export default function Explorer() {
       return;
     }
 
-    setWorkspaces(prevWorkspaces => {
-      return prevWorkspaces.map(workspace => {
-        if (workspace.name !== activeWorkspace) return workspace;
-
-        const updateNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
-          if (path.length === 0) {
-            const newNode: FileNode = isCreatingFolder ? {
-              name: newName,
-              type: 'folder',
-              children: []
-            } : {
-              name: newName,
-              type: 'file',
-              content: getDefaultContent(newName)
-            };
-            return [...nodes, newNode];
-          }
-
-          const [current, ...rest] = path;
-          return nodes.map(node => {
-            if (node.name === current && node.type === 'folder') {
-              return {
-                ...node,
-                children: updateNodeAtPath(node.children || [], rest)
-              };
-            }
-            return node;
-          });
+    const updateNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
+      if (path.length === 0) {
+        const newNode: FileNode = isCreatingFolder ? {
+          name: newName,
+          type: 'folder',
+          children: []
+        } : {
+          name: newName,
+          type: 'file',
+          content: getDefaultContent(newName)
         };
+        return [...nodes, newNode];
+      }
 
-        return {
-          ...workspace,
-          files: updateNodeAtPath(workspace.files, currentPath)
-        };
+      const [current, ...rest] = path;
+      return nodes.map(node => {
+        if (node.name === current && node.type === 'folder') {
+          return {
+            ...node,
+            children: updateNodeAtPath(node.children || [], rest)
+          };
+        }
+        return node;
       });
-    });
+    };
+
+    updateWorkspace(currentWorkspace.name, updateNodeAtPath(currentWorkspace.files, currentPath));
 
     setIsCreatingFile(false);
     setIsCreatingFolder(false);
@@ -211,75 +181,58 @@ export default function Explorer() {
 
   const handleFileClick = (file: FileNode) => {
     if (file.type === 'file') {
-      setFileName(file.name);
-      setCode(file.content || '');
+      openFile(file.name, file.content || '');
     }
   };
 
   const handleDelete = (node: FileNode, path: string[]) => {
+    if (!currentWorkspace) return;
     if (confirm(`Are you sure you want to delete ${node.name}?`)) {
-      setWorkspaces(prevWorkspaces => {
-        return prevWorkspaces.map(workspace => {
-          if (workspace.name !== activeWorkspace) return workspace;
+      const deleteNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
+        if (path.length === 0) {
+          return nodes.filter(n => n.name !== node.name);
+        }
 
-          const deleteNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
-            if (path.length === 0) {
-              return nodes.filter(n => n.name !== node.name);
-            }
-
-            const [current, ...rest] = path;
-            return nodes.map(n => {
-              if (n.name === current && n.type === 'folder') {
-                return {
-                  ...n,
-                  children: deleteNodeAtPath(n.children || [], rest)
-                };
-              }
-              return n;
-            });
-          };
-
-          return {
-            ...workspace,
-            files: deleteNodeAtPath(workspace.files, path)
-          };
+        const [current, ...rest] = path;
+        return nodes.map(n => {
+          if (n.name === current && n.type === 'folder') {
+            return {
+              ...n,
+              children: deleteNodeAtPath(n.children || [], rest)
+            };
+          }
+          return n;
         });
-      });
+      };
+
+      updateWorkspace(currentWorkspace.name, deleteNodeAtPath(currentWorkspace.files, path));
     }
   };
 
   const toggleFolder = (node: FileNode, path: string[]) => {
-    setWorkspaces(prevWorkspaces => {
-      return prevWorkspaces.map(workspace => {
-        if (workspace.name !== activeWorkspace) return workspace;
+    if (!currentWorkspace) return;
+    const toggleNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
+      if (path.length === 0) {
+        return nodes.map(n => 
+          n.name === node.name && n.type === 'folder'
+            ? { ...n, isExpanded: !n.isExpanded }
+            : n
+        );
+      }
 
-        const toggleNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
-          if (path.length === 0) {
-            return nodes.map(n => 
-              n.name === node.name && n.type === 'folder'
-                ? { ...n, isExpanded: !n.isExpanded }
-                : n
-            );
-          }
-
-          const [current, ...rest] = path;
-          return nodes.map(n => {
-            if (n.name === current && n.type === 'folder') {
-              return {
-                ...n,
-                children: toggleNodeAtPath(n.children || [], rest)
-              };
-            }
-            return n;
-          });
-        };
-
-        return {
-          ...workspace,
-          files: toggleNodeAtPath(workspace.files, path)
-        };
+      const [current, ...rest] = path;
+      return nodes.map(n => {
+        if (n.name === current && n.type === 'folder') {
+          return {
+            ...n,
+            children: toggleNodeAtPath(n.children || [], rest)
+          };
+        }
+        return n;
       });
-    });
+    };
+
+    updateWorkspace(currentWorkspace.name, toggleNodeAtPath(currentWorkspace.files, path));
   };
 
   const BlankFileIcon = () => (
@@ -328,7 +281,7 @@ export default function Explorer() {
               key={index}
               className="absolute w-px bg-[var(--border-color)]"
               style={{
-                left: `${index * 1}rem`,
+                left: `calc(${index * 1.25}rem + 0.75rem)`,
                 top: 0,
                 bottom: 0,
                 width: '1px'
@@ -336,25 +289,15 @@ export default function Explorer() {
             />
           ))}
           <div
-            className="flex items-center space-x-2 cursor-pointer pl-4 text-[var(--text-primary)] hover:text-[var(--primary-color)] relative"
-            style={{ paddingLeft: `${path.length * 1}rem` }}
+            className="flex items-center space-x-2 cursor-pointer text-[var(--text-primary)] hover:text-[var(--primary-color)] relative"
+            style={{ paddingLeft: `${path.length * 1.25}rem` }}
             onMouseEnter={() => setHoveredNode(node.name)}
             onMouseLeave={() => {
               setHoveredNode(null);
               if (!showCreateMenu) setShowCreateMenu(null);
             }}
           >
-            {/* Horizontal tree line */}
-            {path.length > 0 && (
-              <div
-                className="absolute h-px bg-[var(--border-color)]"
-                style={{
-                  left: `${(path.length - 1) * 1}rem`,
-                  width: '1rem',
-                  top: '50%'
-                }}
-              />
-            )}
+            {/* Remove horizontal tree line */}
             <div className="flex items-center space-x-2" onClick={() => handleFileClick(node)}>
               {getFileIcon(fileType)}
               <span>{node.name}</span>
@@ -427,7 +370,7 @@ export default function Explorer() {
                 <form 
                   onSubmit={handleNameSubmit} 
                   className="flex items-center space-x-2"
-                  style={{ paddingLeft: `${(path.length + 1) * 1}rem` }}
+                  style={{ paddingLeft: `${(path.length + 1) * 1.25}rem` }}
                 >
                   {isCreatingFile ? <BlankFileIcon /> : getFileIcon('folder')}
                   <input

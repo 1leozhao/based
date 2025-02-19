@@ -1,29 +1,50 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
 
-interface EditorState {
-  code: string;
+interface FileTab {
+  id: string;
   fileName: string;
+  code: string;
   isModified: boolean;
   history: string[];
   historyIndex: number;
+}
+
+interface SearchResult {
+  fileName: string;
+  filePath: string;
+  content: string;
+  matches: {
+    name: boolean;
+    content: boolean;
+  };
+}
+
+interface EditorState {
+  openFiles: FileTab[];
+  activeFileId: string | null;
   isDiffViewEnabled: boolean;
   originalCode: string | null;
   theme: 'light' | 'dark';
   explorerWidth: number;
-  setCode: (code: string) => void;
-  setFileName: (name: string) => void;
+  searchQuery: string;
+  searchResults: SearchResult[];
+  setCode: (id: string, code: string) => void;
+  openFile: (fileName: string, content: string) => void;
+  closeFile: (id: string) => void;
+  setActiveFile: (id: string) => void;
   newFile: () => void;
-  saveFile: () => void;
-  openFile: (file: File) => Promise<void>;
-  undo: () => void;
-  redo: () => void;
+  saveFile: (id: string) => void;
+  undo: (id: string) => void;
+  redo: (id: string) => void;
   compile: () => Promise<void>;
   deploy: () => Promise<void>;
   toggleDiffView: () => void;
   setOriginalCode: (code: string) => void;
   toggleTheme: () => void;
   setExplorerWidth: (width: number) => void;
+  setSearchQuery: (query: string) => void;
+  setSearchResults: (results: SearchResult[]) => void;
 }
 
 const defaultCode = `// SPDX-License-Identifier: MIT
@@ -56,79 +77,120 @@ contract Based {
 }`;
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  code: defaultCode,
-  fileName: 'Based.sol',
-  isModified: false,
-  history: [defaultCode],
-  historyIndex: 0,
+  openFiles: [],
+  activeFileId: null,
   isDiffViewEnabled: false,
   originalCode: null,
   theme: 'dark',
   explorerWidth: 300,
+  searchQuery: '',
+  searchResults: [],
 
-  setCode: (code: string) => {
-    const { history, historyIndex } = get();
-    const newHistory = [...history.slice(0, historyIndex + 1), code];
-    set({
-      code,
-      isModified: true,
-      history: newHistory,
-      historyIndex: newHistory.length - 1,
+  setCode: (id: string, code: string) => {
+    set(state => ({
+      openFiles: state.openFiles.map(file => {
+        if (file.id === id) {
+          const newHistory = [...file.history.slice(0, file.historyIndex + 1), code];
+          return {
+            ...file,
+            code,
+            isModified: true,
+            history: newHistory,
+            historyIndex: newHistory.length - 1,
+          };
+        }
+        return file;
+      }),
+    }));
+  },
+
+  openFile: (fileName: string, content: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    set(state => {
+      // Check if file is already open
+      const existingFile = state.openFiles.find(f => f.fileName === fileName);
+      if (existingFile) {
+        return { activeFileId: existingFile.id };
+      }
+
+      // Open new file
+      return {
+        openFiles: [...state.openFiles, {
+          id,
+          fileName,
+          code: content,
+          isModified: false,
+          history: [content],
+          historyIndex: 0,
+        }],
+        activeFileId: id,
+      };
     });
   },
 
-  setFileName: (name: string) => set({ fileName: name }),
+  closeFile: (id: string) => {
+    set(state => {
+      const newFiles = state.openFiles.filter(f => f.id !== id);
+      let newActiveId = state.activeFileId;
+      
+      if (state.activeFileId === id) {
+        newActiveId = newFiles.length > 0 ? newFiles[newFiles.length - 1].id : null;
+      }
+
+      return {
+        openFiles: newFiles,
+        activeFileId: newActiveId,
+      };
+    });
+  },
+
+  setActiveFile: (id: string) => set({ activeFileId: id }),
 
   newFile: () => {
-    set({
-      code: defaultCode,
-      fileName: 'Untitled.sol',
-      isModified: false,
-      history: [defaultCode],
-      historyIndex: 0,
-      isDiffViewEnabled: false,
-      originalCode: null,
-    });
+    const id = Math.random().toString(36).substr(2, 9);
+    set(state => ({
+      openFiles: [...state.openFiles, {
+        id,
+        fileName: 'Untitled.sol',
+        code: defaultCode,
+        isModified: false,
+        history: [defaultCode],
+        historyIndex: 0,
+      }],
+      activeFileId: id,
+    }));
   },
 
-  saveFile: () => {
-    const { code, fileName } = get();
-    // Create a blob and trigger download
-    const blob = new Blob([code], { type: 'text/plain' });
+  saveFile: (id: string) => {
+    const { openFiles } = get();
+    const file = openFiles.find(f => f.id === id);
+    if (!file) return;
+
+    const blob = new Blob([file.code], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = fileName;
+    a.download = file.fileName;
     a.click();
     URL.revokeObjectURL(url);
-    set({ isModified: false });
-  },
 
-  openFile: async (file: File) => {
-    try {
-      const content = await file.text();
-      set({
-        code: content,
-        fileName: file.name,
-        isModified: false,
-        history: [content],
-        historyIndex: 0,
-        isDiffViewEnabled: false,
-        originalCode: null,
-      });
-    } catch (error) {
-      console.error('Error reading file:', error);
-      throw error;
-    }
+    set(state => ({
+      openFiles: state.openFiles.map(f => 
+        f.id === id ? { ...f, isModified: false } : f
+      ),
+    }));
   },
 
   toggleDiffView: () => {
-    const { isDiffViewEnabled, code, originalCode } = get();
+    const { isDiffViewEnabled, activeFileId, openFiles, originalCode } = get();
+    const activeFile = openFiles.find(f => f.id === activeFileId);
+    
+    if (!activeFile) return;
+
     if (!isDiffViewEnabled && !originalCode) {
-      // If enabling diff view and no original code exists, use the current code
       set({ 
         isDiffViewEnabled: true,
-        originalCode: code 
+        originalCode: activeFile.code 
       });
     } else {
       set({ isDiffViewEnabled: !isDiffViewEnabled });
@@ -137,35 +199,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setOriginalCode: (code: string) => set({ originalCode: code }),
 
-  undo: () => {
-    const { history, historyIndex } = get();
-    if (historyIndex > 0) {
-      set({
-        code: history[historyIndex - 1],
-        historyIndex: historyIndex - 1,
-        isModified: true,
-      });
-    }
+  undo: (id: string) => {
+    set(state => ({
+      openFiles: state.openFiles.map(file => {
+        if (file.id === id && file.historyIndex > 0) {
+          return {
+            ...file,
+            code: file.history[file.historyIndex - 1],
+            historyIndex: file.historyIndex - 1,
+            isModified: true,
+          };
+        }
+        return file;
+      }),
+    }));
   },
 
-  redo: () => {
-    const { history, historyIndex } = get();
-    if (historyIndex < history.length - 1) {
-      set({
-        code: history[historyIndex + 1],
-        historyIndex: historyIndex + 1,
-        isModified: true,
-      });
-    }
+  redo: (id: string) => {
+    set(state => ({
+      openFiles: state.openFiles.map(file => {
+        if (file.id === id && file.historyIndex < file.history.length - 1) {
+          return {
+            ...file,
+            code: file.history[file.historyIndex + 1],
+            historyIndex: file.historyIndex + 1,
+            isModified: true,
+          };
+        }
+        return file;
+      }),
+    }));
   },
 
   compile: async () => {
-    const { code } = get();
+    const { activeFileId, openFiles } = get();
+    const activeFile = openFiles.find(f => f.id === activeFileId);
+    if (!activeFile) return;
+
     try {
       const response = await fetch('/api/compile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: activeFile.code }),
       });
       
       const data = await response.json();
@@ -185,12 +260,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   deploy: async () => {
-    const { code } = get();
+    const { activeFileId, openFiles } = get();
+    const activeFile = openFiles.find(f => f.id === activeFileId);
+    if (!activeFile) return;
+
     try {
       const response = await fetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: activeFile.code }),
       });
       
       const data = await response.json();
@@ -217,4 +295,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setExplorerWidth: (width: number) => set({ explorerWidth: width }),
+
+  setSearchQuery: (query: string) => set({ searchQuery: query }),
+  setSearchResults: (results: SearchResult[]) => set({ searchResults: results }),
 })); 

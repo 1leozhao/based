@@ -25,7 +25,7 @@ const BASE_SEPOLIA_CHAIN_ID = 84532;
 export default function Terminal({ isVisible, onResize }: TerminalProps) {
   const [commands, setCommands] = useState<TerminalCommand[]>([]);
   const [currentCommand, setCurrentCommand] = useState('');
-  const [terminalHeight, setTerminalHeight] = useState(256); // Default height (16rem = 256px)
+  const [terminalHeight, setTerminalHeight] = useState(256);
   const [isResizing, setIsResizing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -38,7 +38,8 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
     address,
     chainId,
   });
-  const { code } = useEditorStore();
+  const { openFiles, activeFileId } = useEditorStore();
+  const activeFile = openFiles.find(f => f.id === activeFileId);
 
   // Get current chain from config
   const chain = config.chains.find(c => c.id === chainId);
@@ -58,7 +59,10 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizing) {
-        const newHeight = window.innerHeight - e.clientY;
+        const topOffset = 56; // Height of the navbar (14 * 4 = 56px)
+        const terminalTop = e.clientY - topOffset;
+        const windowHeight = window.innerHeight - topOffset;
+        const newHeight = windowHeight - terminalTop;
         const clampedHeight = Math.min(Math.max(newHeight, MIN_TERMINAL_HEIGHT), MAX_TERMINAL_HEIGHT);
         setTerminalHeight(clampedHeight);
         onResize(clampedHeight);
@@ -67,23 +71,24 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
 
     const handleMouseUp = () => {
       setIsResizing(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = '';
     };
 
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
     }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
   }, [isResizing, onResize]);
-
-  useEffect(() => {
-    // Initial setup of commands if needed
-    setCommands([]);
-  }, []); // Empty dependency array means this runs once on mount
 
   const handleCommand = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter' || !currentCommand.trim()) return;
@@ -93,45 +98,50 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
       output: '',
     };
 
+    // Add command to history immediately
+    setCommands(prev => [...prev, newCommand]);
+    setCurrentCommand('');
+
     // Process command - only make the command name lowercase, preserve args case
     const cmdParts = currentCommand.trim().split(' ');
     const cmd = cmdParts[0].toLowerCase();
     const args = cmdParts.slice(1);
 
-    if (cmd === 'clear') {
-      setCommands([]);
-    } else if (cmd === 'help') {
-      newCommand.output = `Available commands:
+    try {
+      if (cmd === 'clear') {
+        setCommands([]);
+        return;
+      } else if (cmd === 'help') {
+        newCommand.output = `Available commands:
   help                    - Show this help message
   clear                   - Clear terminal
   balance                 - Show current wallet balance
   network                 - Show current network info
   deploy                  - List available contracts to deploy
   deploy <contract_name>  - Deploy specific contract (case-sensitive)`;
-    } else if (cmd === 'balance') {
-      if (!address) {
-        newCommand.output = 'Wallet not connected';
-        newCommand.isError = true;
-      } else if (!chainId) {
-        newCommand.output = 'Network not connected';
-        newCommand.isError = true;
-      } else if (isBalanceLoading) {
-        newCommand.output = 'Loading balance...';
-        newCommand.isError = true;
-      } else if (balanceError) {
-        newCommand.output = `Error fetching balance: ${balanceError.message}`;
-        newCommand.isError = true;
-      } else if (!balance) {
-        newCommand.output = 'Unable to fetch balance';
-        newCommand.isError = true;
-      } else {
-        const formattedBalance = parseFloat(balance.formatted).toFixed(4);
-        newCommand.output = `Balance: ${formattedBalance} ${balance.symbol}
+      } else if (cmd === 'balance') {
+        if (!address) {
+          newCommand.output = 'Wallet not connected';
+          newCommand.isError = true;
+        } else if (!chainId) {
+          newCommand.output = 'Network not connected';
+          newCommand.isError = true;
+        } else if (isBalanceLoading) {
+          newCommand.output = 'Loading balance...';
+          newCommand.isError = true;
+        } else if (balanceError) {
+          newCommand.output = `Error fetching balance: ${balanceError.message}`;
+          newCommand.isError = true;
+        } else if (!balance) {
+          newCommand.output = 'Unable to fetch balance';
+          newCommand.isError = true;
+        } else {
+          const formattedBalance = parseFloat(balance.formatted).toFixed(4);
+          newCommand.output = `Balance: ${formattedBalance} ${balance.symbol}
 Network: ${chain?.name || 'Unknown'}
 Address: ${address}`;
-      }
-    } else if (cmd === 'network') {
-      try {
+        }
+      } else if (cmd === 'network') {
         if (!chain) {
           newCommand.output = 'Not connected to any network';
           newCommand.isError = true;
@@ -142,12 +152,7 @@ Address: ${address}`;
   ${chainId === BASE_SEPOLIA_CHAIN_ID ? '✓ Connected to Base Sepolia' : '⚠ Not connected to Base Sepolia'}
   RPC URL: ${chain.rpcUrls.default.http[0]}`;
         }
-      } catch (error) {
-        newCommand.output = `Error getting network info: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        newCommand.isError = true;
-      }
-    } else if (cmd === 'deploy') {
-      try {
+      } else if (cmd === 'deploy') {
         if (!address) {
           newCommand.output = 'Please connect your wallet first';
           newCommand.isError = true;
@@ -162,10 +167,13 @@ Address: ${address}`;
 Please switch to Base Sepolia (Chain ID: ${BASE_SEPOLIA_CHAIN_ID})
 Note: Make sure you're using Base Sepolia, not regular Sepolia network`;
           newCommand.isError = true;
+        } else if (!activeFile) {
+          newCommand.output = 'No file is currently open';
+          newCommand.isError = true;
         } else {
           // If no contract name provided, list available contracts
           if (args.length === 0) {
-            const contracts = await getAvailableContracts(code);
+            const contracts = await getAvailableContracts(activeFile.code);
             if (contracts.length === 0) {
               newCommand.output = 'No deployable contracts found in the current file';
               newCommand.isError = true;
@@ -183,7 +191,7 @@ Note: Contract names are case-sensitive`;
             
             // Start deployment
             newCommand.output = `Starting deployment of contract "${contractName}"...\n`;
-            setCommands(prev => [...prev, newCommand]);
+            setCommands(prev => [...prev.slice(0, -1), { ...newCommand }]);
 
             // Create ethers signer from wallet client
             const provider = new ethers.BrowserProvider(window.ethereum);
@@ -191,7 +199,7 @@ Note: Contract names are case-sensitive`;
             
             console.log('Using address:', await signer.getAddress()); // Debug log
 
-            const { address: contractAddress, txHash } = await deployContract(code, contractName, signer);
+            const { address: contractAddress, txHash } = await deployContract(activeFile.code, contractName, signer);
             
             newCommand.output = `Deployment successful!
 Contract: ${contractName}
@@ -203,19 +211,18 @@ View on Explorer: https://sepolia.basescan.org/address/${contractAddress}`;
             toast.success('Contract deployed successfully!');
           }
         }
-      } catch (error) {
-        console.error('Deployment error:', error); // Debug log
-        newCommand.output = `Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      } else {
+        newCommand.output = `Command not found: ${cmd}. Type 'help' for available commands.`;
         newCommand.isError = true;
-        toast.error('Deployment failed');
       }
-    } else {
-      newCommand.output = `Command not found: ${cmd}. Type 'help' for available commands.`;
+    } catch (error) {
+      console.error('Command error:', error);
+      newCommand.output = error instanceof Error ? error.message : 'An unknown error occurred';
       newCommand.isError = true;
     }
 
-    setCommands(prev => [...prev, newCommand]);
-    setCurrentCommand('');
+    // Update the command output
+    setCommands(prev => [...prev.slice(0, -1), { ...newCommand }]);
   };
 
   if (!isVisible) return null;
@@ -227,9 +234,21 @@ View on Explorer: https://sepolia.basescan.org/address/${contractAddress}`;
     >
       {/* Resize Handle */}
       <div
-        className="absolute top-0 left-0 right-0 h-1 cursor-row-resize bg-[var(--border-color)] hover:bg-[var(--primary-color)] transition-colors"
-        onMouseDown={() => setIsResizing(true)}
-      />
+        className="absolute top-0 left-0 right-0 h-[2px] cursor-row-resize z-50 hover:z-[100] group"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsResizing(true);
+          document.body.style.cursor = 'row-resize';
+        }}
+      >
+        <div 
+          className="h-full w-full transition-colors duration-150" 
+          style={{
+            backgroundColor: isResizing ? 'var(--primary-color)' : 'var(--border-color)',
+          }}
+        />
+      </div>
       
       {/* Terminal Header */}
       <div className="flex items-center px-4 py-2 bg-[#2a2a2a] border-b border-[var(--border-color)]">

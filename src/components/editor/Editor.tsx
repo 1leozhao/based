@@ -8,18 +8,32 @@ import DiffEditor from './DiffEditor';
 import Terminal from '../terminal/Terminal';
 
 export default function CodeEditor() {
-  const { code, fileName, setCode, isDiffViewEnabled, toggleDiffView, theme, toggleTheme, explorerWidth } = useEditorStore();
+  const {
+    openFiles,
+    activeFileId,
+    setCode,
+    isDiffViewEnabled,
+    toggleDiffView,
+    theme,
+    toggleTheme,
+    explorerWidth,
+    closeFile,
+    setActiveFile
+  } = useEditorStore();
   const [isTerminalVisible, setIsTerminalVisible] = useState(false);
   const [terminalHeight, setTerminalHeight] = useState(256);
+  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
   const activityBarWidth = 48;
   const totalSidebarWidth = explorerWidth + activityBarWidth;
+
+  const activeFile = openFiles.find(f => f.id === activeFileId);
 
   useEffect(() => {
     configureMonaco();
   }, []);
 
   const handleEditorChange = (value: string | undefined) => {
-    if (value) setCode(value);
+    if (value && activeFileId) setCode(activeFileId, value);
   };
 
   return (
@@ -31,14 +45,41 @@ export default function CodeEditor() {
       }}
     >
       {/* Tabs */}
-      <div className="h-10 border-b border-[var(--border-color)] flex items-center justify-between px-4">
-        <div className="px-4 py-2 bg-[var(--navbar-bg)] text-[var(--text-primary)] border-r border-[var(--border-color)] flex items-center space-x-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <span>{fileName}</span>
+      <div className="h-10 border-b border-[var(--border-color)] flex items-center px-2 bg-[var(--navbar-bg)]">
+        <div className="flex-1 flex items-center space-x-1 overflow-x-auto">
+          {openFiles.map(file => (
+            <div
+              key={file.id}
+              className={`group flex items-center space-x-2 px-3 py-1 rounded-lg cursor-pointer ${
+                file.id === activeFileId
+                  ? 'bg-[var(--editor-bg)] text-[var(--text-primary)]'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)]'
+              }`}
+              onClick={() => setActiveFile(file.id)}
+              onMouseEnter={() => setHoveredTabId(file.id)}
+              onMouseLeave={() => setHoveredTabId(null)}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>{file.fileName}</span>
+              {(hoveredTabId === file.id || file.id === activeFileId) && (
+                <button
+                  className="p-1 rounded-full hover:bg-[var(--hover-bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeFile(file.id);
+                  }}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          ))}
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 ml-2">
           <button
             onClick={() => setIsTerminalVisible(!isTerminalVisible)}
             className={`px-3 py-1 rounded-lg transition-colors ${
@@ -74,6 +115,7 @@ export default function CodeEditor() {
                 ? 'bg-[var(--primary-color)] text-white'
                 : 'hover:bg-[var(--hover-bg)]'
             }`}
+            title="Toggle Diff View"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -83,55 +125,48 @@ export default function CodeEditor() {
       </div>
 
       {/* Editor Content */}
-      <div className="flex-1 min-h-0 relative">
-        {isDiffViewEnabled ? (
-          <DiffEditor />
+      <div className="flex-1 relative">
+        {activeFile ? (
+          isDiffViewEnabled ? (
+            <DiffEditor />
+          ) : (
+            <Editor
+              height="100%"
+              defaultLanguage="solidity"
+              theme={`based-${theme}`}
+              value={activeFile.code}
+              onChange={handleEditorChange}
+              options={{
+                minimap: { enabled: true },
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                scrollBeyondLastLine: false,
+                readOnly: false,
+                automaticLayout: true,
+                padding: { top: 0, bottom: 0 },
+                lineNumbersMinChars: 3,
+                glyphMargin: false,
+                folding: true,
+                lineDecorationsWidth: 0,
+              }}
+              className="h-full w-full absolute inset-0"
+            />
+          )
         ) : (
-          <Editor
-            height="100%"
-            language="solidity"
-            theme={`based-${theme}`}
-            value={code}
-            onChange={handleEditorChange}
-            options={{
-              minimap: { enabled: true },
-              fontSize: 14,
-              lineNumbers: 'on',
-              roundedSelection: false,
-              scrollBeyondLastLine: false,
-              readOnly: false,
-              automaticLayout: true,
-              padding: { top: 0, bottom: 0 },
-              lineNumbersMinChars: 3,
-              glyphMargin: false,
-              folding: true,
-              lineDecorationsWidth: 0,
-            }}
-            className="h-full w-full absolute inset-0"
-          />
+          <div className="flex items-center justify-center h-full text-[var(--text-secondary)]">
+            No file open
+          </div>
         )}
       </div>
 
       {/* Terminal */}
       {isTerminalVisible && (
-        <Terminal 
-          isVisible={isTerminalVisible} 
+        <Terminal
+          isVisible={isTerminalVisible}
           onResize={setTerminalHeight}
         />
       )}
-
-      {/* Status Bar */}
-      <div className="h-6 bg-[var(--navbar-bg)] border-t border-[var(--border-color)] flex items-center justify-between px-4 text-xs text-[var(--text-secondary)]">
-        <div className="flex items-center space-x-4">
-          <span>Solidity 0.8.24</span>
-          <span>Base Sepolia</span>
-          <span>Gas: 0 gwei</span>
-        </div>
-        <div className="flex items-center space-x-4">
-          <span>{code.split('\n').length} lines</span>
-          <span>UTF-8</span>
-        </div>
-      </div>
     </div>
   );
 }

@@ -48,7 +48,10 @@ export async function getAvailableContracts(code: string): Promise<string[]> {
     for (const file in result.contracts) {
       const fileContracts = result.contracts[file];
       for (const contractName in fileContracts) {
-        contracts.push(contractName);
+        // Filter out .dbg files
+        if (!contractName.endsWith('.dbg')) {
+          contracts.push(contractName);
+        }
       }
     }
 
