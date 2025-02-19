@@ -5,7 +5,6 @@ export interface FileNode {
   type: 'file' | 'folder';
   children?: FileNode[];
   content?: string;
-  isExpanded?: boolean;
 }
 
 export interface Workspace {
@@ -20,6 +19,9 @@ interface WorkspaceState {
   setActiveWorkspace: (name: string) => void;
   addWorkspace: (workspace: Workspace) => void;
   updateWorkspace: (name: string, files: FileNode[]) => void;
+  addFile: (path: string[], content: string) => void;
+  updateFile: (path: string[], content: string) => void;
+  deleteFile: (path: string[]) => void;
   searchFiles: (query: string) => Array<{
     fileName: string;
     filePath: string;
@@ -30,6 +32,78 @@ interface WorkspaceState {
     };
   }>;
 }
+
+// Helper function to recursively find and update a file node
+const updateFileNode = (nodes: FileNode[], path: string[], content: string, isNew: boolean = false): FileNode[] => {
+  if (path.length === 0) return nodes;
+
+  const [current, ...rest] = path;
+  const nodeIndex = nodes.findIndex(n => n.name === current);
+
+  if (nodeIndex === -1) {
+    // If we're adding a new file and the path doesn't exist
+    if (isNew) {
+      if (rest.length === 0) {
+        // This is a new file
+        nodes.push({
+          name: current,
+          type: 'file',
+          content
+        });
+      } else {
+        // This is a new folder
+        nodes.push({
+          name: current,
+          type: 'folder',
+          children: updateFileNode([], rest, content, isNew)
+        });
+      }
+    }
+    return nodes;
+  }
+
+  const node = nodes[nodeIndex];
+  if (rest.length === 0) {
+    // We've reached the target file
+    if (node.type === 'file') {
+      nodes[nodeIndex] = { ...node, content };
+    }
+  } else {
+    // We need to go deeper
+    if (node.type === 'folder') {
+      nodes[nodeIndex] = {
+        ...node,
+        children: updateFileNode(node.children || [], rest, content, isNew)
+      };
+    }
+  }
+
+  return nodes;
+};
+
+// Helper function to recursively delete a file node
+const deleteFileNode = (nodes: FileNode[], path: string[]): FileNode[] => {
+  if (path.length === 0) return nodes;
+
+  const [current, ...rest] = path;
+  if (rest.length === 0) {
+    // Remove the target file/folder
+    return nodes.filter(n => n.name !== current);
+  }
+
+  const nodeIndex = nodes.findIndex(n => n.name === current);
+  if (nodeIndex === -1) return nodes;
+
+  const node = nodes[nodeIndex];
+  if (node.type === 'folder') {
+    nodes[nodeIndex] = {
+      ...node,
+      children: deleteFileNode(node.children || [], rest)
+    };
+  }
+
+  return nodes;
+};
 
 // Function to recursively search through files
 function searchFiles(node: FileNode, query: string, path: string[] = []): Array<{
@@ -131,6 +205,51 @@ contract Based {
       w.name === name ? { ...w, files } : w
     )
   })),
+
+  addFile: (path, content) => set(state => {
+    const { workspaces, activeWorkspace } = state;
+    const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
+    if (workspaceIndex === -1) return state;
+
+    const workspace = workspaces[workspaceIndex];
+    const updatedFiles = updateFileNode([...workspace.files], path, content, true);
+
+    return {
+      workspaces: workspaces.map((w, i) =>
+        i === workspaceIndex ? { ...w, files: updatedFiles } : w
+      )
+    };
+  }),
+
+  updateFile: (path, content) => set(state => {
+    const { workspaces, activeWorkspace } = state;
+    const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
+    if (workspaceIndex === -1) return state;
+
+    const workspace = workspaces[workspaceIndex];
+    const updatedFiles = updateFileNode([...workspace.files], path, content, false);
+
+    return {
+      workspaces: workspaces.map((w, i) =>
+        i === workspaceIndex ? { ...w, files: updatedFiles } : w
+      )
+    };
+  }),
+
+  deleteFile: (path) => set(state => {
+    const { workspaces, activeWorkspace } = state;
+    const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
+    if (workspaceIndex === -1) return state;
+
+    const workspace = workspaces[workspaceIndex];
+    const updatedFiles = deleteFileNode([...workspace.files], path);
+
+    return {
+      workspaces: workspaces.map((w, i) =>
+        i === workspaceIndex ? { ...w, files: updatedFiles } : w
+      )
+    };
+  }),
 
   searchFiles: (query) => {
     const { workspaces, activeWorkspace } = get();

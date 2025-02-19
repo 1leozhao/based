@@ -4,16 +4,17 @@ import { deployContract, getAvailableContracts } from '@/services/deploymentServ
 import { useEditorStore } from '@/store/editorStore';
 import { toast } from 'react-hot-toast';
 import { ethers } from 'ethers';
+import { useWorkspaceStore, type FileNode } from '@/store/workspaceStore';
+
+interface TerminalCommand {
+  input: string;
+  output: string;
+  isError: boolean;
+}
 
 interface TerminalProps {
   isVisible: boolean;
   onResize: (height: number) => void;
-}
-
-interface TerminalCommand {
-  command: string;
-  output: string;
-  isError?: boolean;
 }
 
 const MIN_TERMINAL_HEIGHT = 150; // Minimum height in pixels
@@ -29,6 +30,7 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
   const [isResizing, setIsResizing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const { address } = useAccount();
   const config = useConfig();
   const chainId = useChainId();
@@ -90,35 +92,44 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
     };
   }, [isResizing, onResize]);
 
-  const handleCommand = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter' || !currentCommand.trim()) return;
+  // Add new useEffect for auto-scrolling on command typing
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = contentRef.current.scrollHeight;
+    }
+  }, [currentCommand, commands]);
 
+  const handleCommand = async (cmd: string) => {
     const newCommand: TerminalCommand = {
-      command: currentCommand,
+      input: cmd,
       output: '',
+      isError: false,
     };
 
-    // Add command to history immediately
-    setCommands(prev => [...prev, newCommand]);
-    setCurrentCommand('');
-
-    // Process command - only make the command name lowercase, preserve args case
-    const cmdParts = currentCommand.trim().split(' ');
-    const cmd = cmdParts[0].toLowerCase();
-    const args = cmdParts.slice(1);
-
     try {
-      if (cmd === 'clear') {
-        setCommands([]);
-        return;
-      } else if (cmd === 'help') {
+      if (cmd === 'help') {
         newCommand.output = `Available commands:
-  help                    - Show this help message
-  clear                   - Clear terminal
-  balance                 - Show current wallet balance
-  network                 - Show current network info
-  deploy                  - List available contracts to deploy
-  deploy <contract_name>  - Deploy specific contract (case-sensitive)`;
+  help              - Show this help message
+  clear             - Clear the terminal
+  balance           - Show wallet balance and network info
+  network           - Show current network information
+  deploy            - List deployable contracts
+  deploy <name>     - Deploy specific contract to current network
+  networks          - List available networks`;
+      } else if (cmd === 'clear') {
+        setCommands([]);
+        return; // Don't add the clear command to history
+      } else if (cmd === 'networks') {
+        newCommand.output = `Available networks:
+1. Base Sepolia (testnet)
+   Chain ID: ${BASE_SEPOLIA_CHAIN_ID}
+   RPC URL: ${chain?.rpcUrls.default.http[0]}
+
+2. Base Mainnet
+   Chain ID: ${config.chains.find(c => c.id === config.chains[0].id)?.id}
+   RPC URL: ${config.chains.find(c => c.id === config.chains[0].id)?.rpcUrls.default.http[0]}
+
+Current network: ${chain?.name || 'Not connected'}`;
       } else if (cmd === 'balance') {
         if (!address) {
           newCommand.output = 'Wallet not connected';
@@ -147,12 +158,12 @@ Address: ${address}`;
           newCommand.isError = true;
         } else {
           newCommand.output = `Network Info:
-  Name: ${chain.name}
-  Chain ID: ${chainId}
-  ${chainId === BASE_SEPOLIA_CHAIN_ID ? '✓ Connected to Base Sepolia' : '⚠ Not connected to Base Sepolia'}
-  RPC URL: ${chain.rpcUrls.default.http[0]}`;
+Name: ${chain.name}
+Chain ID: ${chainId}
+Network Type: ${chainId === BASE_SEPOLIA_CHAIN_ID ? 'Testnet' : 'Unknown'}
+RPC URL: ${chain.rpcUrls.default.http[0]}`;
         }
-      } else if (cmd === 'deploy') {
+      } else if (cmd.startsWith('deploy')) {
         if (!address) {
           newCommand.output = 'Please connect your wallet first';
           newCommand.isError = true;
@@ -162,53 +173,126 @@ Address: ${address}`;
         } else if (!chain) {
           newCommand.output = 'No network connection detected. Please check your wallet connection.';
           newCommand.isError = true;
-        } else if (chainId !== BASE_SEPOLIA_CHAIN_ID) {
-          newCommand.output = `Wrong network detected (${chain.name}, Chain ID: ${chainId})
-Please switch to Base Sepolia (Chain ID: ${BASE_SEPOLIA_CHAIN_ID})
-Note: Make sure you're using Base Sepolia, not regular Sepolia network`;
-          newCommand.isError = true;
-        } else if (!activeFile) {
-          newCommand.output = 'No file is currently open';
-          newCommand.isError = true;
         } else {
-          // If no contract name provided, list available contracts
-          if (args.length === 0) {
-            const contracts = await getAvailableContracts(activeFile.code);
-            if (contracts.length === 0) {
-              newCommand.output = 'No deployable contracts found in the current file';
-              newCommand.isError = true;
-            } else {
-              newCommand.output = `Available contracts to deploy:
-${contracts.map(name => `  ${name}`).join('\n')}
-
-Deploy a specific contract with:
-  deploy <contract_name>
-
-Note: Contract names are case-sensitive`;
+          try {
+            const { workspaces, activeWorkspace } = useWorkspaceStore.getState();
+            const workspace = workspaces.find(w => w.name === activeWorkspace);
+            
+            if (!workspace) {
+              throw new Error('No active workspace found');
             }
-          } else {
-            const contractName = args[0]; // Use original case
-            
-            // Start deployment
-            newCommand.output = `Starting deployment of contract "${contractName}"...\n`;
-            setCommands(prev => [...prev.slice(0, -1), { ...newCommand }]);
 
-            // Create ethers signer from wallet client
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const signer = await provider.getSigner();
+            const contracts = await getAvailableContracts(workspace.files);
+            const args = cmd.split(' ').slice(1);
             
-            console.log('Using address:', await signer.getAddress()); // Debug log
+            if (args.length === 0) {
+              // Just list available contracts
+              if (contracts.length === 0) {
+                newCommand.output = 'No deployable contracts found in any Solidity files';
+                newCommand.isError = true;
+              } else {
+                // Group contracts by file
+                const contractsByFile: { [key: string]: string[] } = {};
+                contracts.forEach(({ name, file }) => {
+                  if (!contractsByFile[file]) {
+                    contractsByFile[file] = [];
+                  }
+                  contractsByFile[file].push(name);
+                });
 
-            const { address: contractAddress, txHash } = await deployContract(activeFile.code, contractName, signer);
-            
-            newCommand.output = `Deployment successful!
-Contract: ${contractName}
+                // Create a simplified output
+                const filesList = Object.entries(contractsByFile)
+                  .map(([file, names]) => `${file}`)
+                  .join('\n');
+
+                newCommand.output = `Available Solidity files:
+${filesList}
+
+Deploy a contract with:
+  deploy <filename.sol>`;
+              }
+            } else {
+              // Deploy specific contract
+              const fileName = args[0];
+              
+              // Check if the file name has .sol extension
+              if (!fileName.endsWith('.sol')) {
+                newCommand.output = 'Please provide the full filename with .sol extension (e.g., deploy Test.sol)';
+                newCommand.isError = true;
+                setCommands(prev => [...prev, newCommand]);
+                setCurrentCommand('');
+                return;
+              }
+
+              // Find all contracts in the specified file
+              const fileContracts = contracts.filter(c => c.file.endsWith('/' + fileName));
+              
+              if (fileContracts.length === 0) {
+                newCommand.output = `File "${fileName}" not found. Available Solidity files:
+${Object.keys(contracts.reduce((acc: { [key: string]: boolean }, { file }) => {
+  acc[file] = true;
+  return acc;
+}, {})).join('\n')}`;
+                newCommand.isError = true;
+              } else if (fileContracts.length === 1) {
+                // If there's only one contract in the file, deploy it automatically
+                const contract = fileContracts[0];
+                const findFileContent = (node: FileNode, path: string[]): string | null => {
+                  if (node.type === 'file' && [...path, node.name].join('/') === contract.file) {
+                    return node.content || null;
+                  }
+                  if (node.children) {
+                    for (const child of node.children) {
+                      const content = findFileContent(child, [...path, node.name]);
+                      if (content) return content;
+                    }
+                  }
+                  return null;
+                };
+
+                const fileContent = workspace.files.reduce<string | null>((content, node) => {
+                  return content || findFileContent(node, []);
+                }, null);
+
+                if (!fileContent) {
+                  throw new Error(`Could not find content for file: ${contract.file}`);
+                }
+
+                newCommand.output = `Deploying ${contract.name} from ${fileName} to ${chain.name}...`;
+                setCommands(prev => [...prev, { ...newCommand }]);
+
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+                
+                const { address: contractAddress, txHash } = await deployContract(
+                  fileContent,
+                  contract.name,
+                  signer
+                );
+                
+                const explorerUrl = chainId === BASE_SEPOLIA_CHAIN_ID
+                  ? 'https://sepolia.basescan.org'
+                  : 'https://basescan.org';
+
+                newCommand.output = `Deployment successful!
+Contract: ${contract.name}
 Address: ${contractAddress}
-Transaction Hash: ${txHash}
+Transaction: ${explorerUrl}/tx/${txHash}`;
+              } else {
+                // Multiple contracts in the file, show them and ask user to specify
+                const contractNames = fileContracts.map(c => c.name).join('\n  ');
+                newCommand.output = `Multiple contracts found in ${fileName}:
+${contractNames}
 
-View on Explorer: https://sepolia.basescan.org/address/${contractAddress}`;
-            
-            toast.success('Contract deployed successfully!');
+Please specify which contract to deploy using its name:
+  deploy <contract_name>`;
+                newCommand.isError = true;
+              }
+            }
+          } catch (error) {
+            console.error('Command error:', error);
+            newCommand.output = error instanceof Error ? error.message : 'An unknown error occurred';
+            newCommand.isError = true;
           }
         }
       } else {
@@ -221,8 +305,26 @@ View on Explorer: https://sepolia.basescan.org/address/${contractAddress}`;
       newCommand.isError = true;
     }
 
-    // Update the command output
-    setCommands(prev => [...prev.slice(0, -1), { ...newCommand }]);
+    setCommands(prev => [...prev, newCommand]);
+    setCurrentCommand('');
+  };
+
+  const handleResizeStart = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    document.body.style.cursor = 'row-resize';
+  };
+
+  const handleCommandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCurrentCommand(e.target.value);
+  };
+
+  const handleClear = () => {
+    setCommands([]);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
   };
 
   if (!isVisible) return null;
@@ -235,19 +337,9 @@ View on Explorer: https://sepolia.basescan.org/address/${contractAddress}`;
       {/* Resize Handle */}
       <div
         className="absolute top-0 left-0 right-0 h-[2px] cursor-row-resize z-50 hover:z-[100] group"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsResizing(true);
-          document.body.style.cursor = 'row-resize';
-        }}
+        onMouseDown={handleResizeStart}
       >
-        <div 
-          className="h-full w-full transition-colors duration-150" 
-          style={{
-            backgroundColor: isResizing ? 'var(--primary-color)' : 'var(--border-color)',
-          }}
-        />
+        <div className="absolute inset-0 bg-[var(--primary-color)] opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
       
       {/* Terminal Header */}
@@ -255,7 +347,7 @@ View on Explorer: https://sepolia.basescan.org/address/${contractAddress}`;
         <span className="text-sm font-medium">Terminal</span>
         <div className="ml-auto flex items-center space-x-2">
           <button
-            onClick={() => setCommands([])}
+            onClick={handleClear}
             className="p-1 rounded hover:bg-[#3a3a3a] text-[#999] hover:text-white transition-colors"
             title="Clear Terminal"
           >
@@ -268,39 +360,46 @@ View on Explorer: https://sepolia.basescan.org/address/${contractAddress}`;
 
       {/* Terminal Content */}
       <div 
-        ref={terminalRef}
-        className="h-[calc(100%-2.5rem)] overflow-auto p-4 font-mono text-sm"
-        style={{
-          backgroundImage: 'linear-gradient(to bottom, #1a1a1a 50%, #1f1f1f 50%)',
-          backgroundSize: '100% 5px',
-          backgroundAttachment: 'local'
+        ref={contentRef}
+        className="h-[calc(100%-80px)] overflow-y-auto p-4 font-mono text-sm"
+        onClick={() => {
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
         }}
       >
         {commands.map((cmd, i) => (
           <div key={i} className="mb-2">
-            <div className="flex items-center">
-              <span className="text-[var(--primary-color)]">$</span>
-              <span className="ml-2 text-[#ccc]">{cmd.command}</span>
+            <div className="flex items-center text-[var(--primary-color)]">
+              <span>$</span>
+              <span className="ml-2">{cmd.input}</span>
             </div>
             {cmd.output && (
-              <div className={`mt-1 whitespace-pre-wrap ${
-                cmd.isError ? 'text-red-500' : 'text-[#b4b4b4]'
-              }`}>
+              <div className={`mt-1 whitespace-pre-wrap ${cmd.isError ? 'text-red-500' : 'text-white'}`}>
                 {cmd.output}
               </div>
             )}
           </div>
         ))}
-        <div className="flex items-center">
-          <span className="text-[var(--primary-color)]">$</span>
+
+        {/* Input Line */}
+        <div className="flex items-center text-[var(--primary-color)]">
+          <span>$</span>
           <input
             ref={inputRef}
             type="text"
             value={currentCommand}
-            onChange={(e) => setCurrentCommand(e.target.value)}
-            onKeyDown={handleCommand}
+            onChange={handleCommandChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && currentCommand.trim()) {
+                handleCommand(currentCommand.trim());
+              }
+            }}
             className="flex-1 ml-2 bg-transparent outline-none text-white placeholder-[#666]"
             placeholder="Type 'help' for available commands"
+            spellCheck={false}
+            autoComplete="off"
+            autoFocus
           />
         </div>
       </div>

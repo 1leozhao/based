@@ -1,62 +1,67 @@
 import { NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, readFile, readdir } from 'fs/promises';
-import path from 'path';
-
-const execAsync = promisify(exec);
+import solc from 'solc';
 
 export async function POST(request: Request) {
   try {
     const { code } = await request.json();
 
-    // Write the code to a temporary file
-    const tempFile = path.join(process.cwd(), 'hardhat/contracts/temp.sol');
-    await writeFile(tempFile, code);
+    if (!code) {
+      return NextResponse.json({ error: 'Source code is required' }, { status: 400 });
+    }
+
+    // Prepare input for the Solidity compiler
+    const input = {
+      language: 'Solidity',
+      sources: {
+        'contract.sol': {
+          content: code
+        }
+      },
+      settings: {
+        outputSelection: {
+          '*': {
+            '*': ['abi', 'evm.bytecode']
+          }
+        },
+        optimizer: {
+          enabled: true,
+          runs: 200
+        }
+      }
+    };
 
     // Compile the contract
-    const { stdout, stderr } = await execAsync('cd hardhat && npx hardhat compile');
+    const output = JSON.parse(solc.compile(JSON.stringify(input)));
 
-    if (stderr) {
-      return NextResponse.json({ error: stderr }, { status: 400 });
-    }
-
-    // Find all compiled contracts in the artifacts directory
-    const artifactsDir = path.join(process.cwd(), 'hardhat/artifacts/contracts/temp.sol');
-    const files = await readdir(artifactsDir);
-    const contractFiles = files.filter(f => f.endsWith('.json'));
-
-    // Read all contract artifacts
-    const contracts: any = {};
-    for (const file of contractFiles) {
-      const artifactPath = path.join(artifactsDir, file);
-      const artifactData = await readFile(artifactPath, 'utf8');
-      const compiledContract = JSON.parse(artifactData);
-      const contractName = path.basename(file, '.json');
-
-      if (!contracts['temp.sol']) {
-        contracts['temp.sol'] = {};
+    // Check for errors
+    if (output.errors) {
+      const errors = output.errors.filter((error: any) => error.severity === 'error');
+      if (errors.length > 0) {
+        return NextResponse.json({
+          error: 'Compilation failed',
+          details: errors
+        }, { status: 400 });
       }
-
-      contracts['temp.sol'][contractName] = {
-        abi: compiledContract.abi,
-        evm: {
-          bytecode: {
-            object: compiledContract.bytecode
-          }
-        }
-      };
     }
 
-    return NextResponse.json({
-      message: 'Compilation successful',
-      output: stdout,
-      contracts
-    });
+    // Filter out unnecessary metadata and only return contract names with their ABI and bytecode
+    const contracts = output.contracts['contract.sol'];
+    const filteredContracts: { [key: string]: { abi: any; bytecode: string } } = {};
+
+    for (const [name, contract] of Object.entries<any>(contracts)) {
+      if (!name.includes(':') && !name.endsWith('.dbg')) {
+        filteredContracts[name] = {
+          abi: contract.abi,
+          bytecode: contract.evm.bytecode.object
+        };
+      }
+    }
+
+    return NextResponse.json({ contracts: filteredContracts });
   } catch (error) {
     console.error('Compilation error:', error);
     return NextResponse.json(
-      { error: 'Compilation failed' },
+      { error: 'Failed to compile contract' },
       { status: 500 }
     );
   }

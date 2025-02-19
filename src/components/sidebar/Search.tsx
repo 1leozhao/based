@@ -1,45 +1,98 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useEditorStore } from '@/store/editorStore';
+import { useWorkspaceStore, type FileNode } from '@/store/workspaceStore';
 
 export default function Search() {
   const { searchQuery, setSearchQuery, searchResults, setSearchResults, openFile } = useEditorStore();
   const [isSearching, setIsSearching] = useState(false);
+  const { workspaces, activeWorkspace } = useWorkspaceStore();
 
+  const performSearch = useCallback(async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const workspace = workspaces.find(w => w.name === activeWorkspace);
+      if (!workspace) {
+        throw new Error('No active workspace found');
+      }
+
+      // Function to recursively search through files
+      const searchFiles = (node: FileNode, query: string, path: string[] = []): Array<{
+        fileName: string;
+        filePath: string;
+        content: string;
+        matches: { name: boolean; content: boolean; };
+      }> => {
+        const results: Array<{
+          fileName: string;
+          filePath: string;
+          content: string;
+          matches: { name: boolean; content: boolean; };
+        }> = [];
+
+        if (node.type === 'file') {
+          const matchesName = node.name.toLowerCase().includes(query.toLowerCase());
+          const matchesContent = node.content?.toLowerCase().includes(query.toLowerCase()) || false;
+
+          if (matchesName || matchesContent) {
+            results.push({
+              fileName: node.name,
+              filePath: [...path, node.name].join('/'),
+              content: node.content || '',
+              matches: {
+                name: matchesName,
+                content: matchesContent,
+              }
+            });
+          }
+        }
+
+        if (node.children) {
+          node.children.forEach(child => {
+            results.push(...searchFiles(child, query, [...path, node.name]));
+          });
+        }
+
+        return results;
+      };
+
+      // Search through all files in the workspace
+      const results = workspace.files.flatMap(node => searchFiles(node, searchQuery, []));
+
+      // Sort results by relevance (name matches first)
+      const sortedResults = results.sort((a, b) => {
+        if (a.matches.name && !b.matches.name) return -1;
+        if (!a.matches.name && b.matches.name) return 1;
+        return 0;
+      });
+
+      setSearchResults(sortedResults);
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery, workspaces, activeWorkspace, setSearchResults]);
+
+  // Effect for search query changes
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    const performSearch = async () => {
-      if (!searchQuery.trim()) {
-        setSearchResults([]);
-        return;
-      }
-
-      setIsSearching(true);
-      try {
-        const response = await fetch('/api/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: searchQuery }),
-        });
-
-        if (!response.ok) throw new Error('Search failed');
-        const results = await response.json();
-        setSearchResults(results);
-      } catch (error) {
-        console.error('Search error:', error);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    };
-
-    // Debounce search
-    timeoutId = setTimeout(performSearch, 300);
-
+    const timeoutId = setTimeout(performSearch, 300);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, setSearchResults]);
+  }, [searchQuery, performSearch]);
+
+  // Effect for workspace changes
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      performSearch();
+    }
+  }, [workspaces, activeWorkspace, searchQuery, performSearch]);
 
   return (
     <div className="h-full flex flex-col">

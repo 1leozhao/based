@@ -29,8 +29,10 @@ export default function Navbar() {
   useKeyboardShortcuts();
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (address) {
+      setMounted(true);
+    }
+  }, [address]);
 
   const displayAddress = address 
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -134,7 +136,7 @@ export default function Navbar() {
             onClick={handleConnection}
             className="px-4 py-2 rounded-lg bg-[var(--primary-color)] text-white hover:bg-[var(--primary-color-hover)] transition-colors"
           >
-            {isConnected ? displayAddress : 'Connect Wallet'}
+            {isConnected && mounted ? displayAddress : 'Connect Wallet'}
           </button>
         </div>
       </div>
