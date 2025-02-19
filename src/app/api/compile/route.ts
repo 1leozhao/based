@@ -1,6 +1,44 @@
 import { NextResponse } from 'next/server';
 import solc from 'solc';
 
+interface CompilerError {
+  severity: 'error' | 'warning';
+  message: string;
+}
+
+interface AbiItem {
+  type: string;
+  name?: string;
+  inputs?: Array<{
+    name: string;
+    type: string;
+    indexed?: boolean;
+  }>;
+  outputs?: Array<{
+    name: string;
+    type: string;
+  }>;
+  stateMutability?: string;
+  constant?: boolean;
+  payable?: boolean;
+}
+
+interface CompilerOutput {
+  errors?: CompilerError[];
+  contracts: {
+    [key: string]: {
+      [key: string]: {
+        abi: AbiItem[];
+        evm: {
+          bytecode: {
+            object: string;
+          };
+        };
+      };
+    };
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const { code } = await request.json();
@@ -31,11 +69,11 @@ export async function POST(request: Request) {
     };
 
     // Compile the contract
-    const output = JSON.parse(solc.compile(JSON.stringify(input)));
+    const output = JSON.parse(solc.compile(JSON.stringify(input))) as CompilerOutput;
 
     // Check for errors
     if (output.errors) {
-      const errors = output.errors.filter((error: any) => error.severity === 'error');
+      const errors = output.errors.filter((error) => error.severity === 'error');
       if (errors.length > 0) {
         return NextResponse.json({
           error: 'Compilation failed',
@@ -46,9 +84,9 @@ export async function POST(request: Request) {
 
     // Filter out unnecessary metadata and only return contract names with their ABI and bytecode
     const contracts = output.contracts['contract.sol'];
-    const filteredContracts: { [key: string]: { abi: any; bytecode: string } } = {};
+    const filteredContracts: { [key: string]: { abi: AbiItem[]; bytecode: string } } = {};
 
-    for (const [name, contract] of Object.entries<any>(contracts)) {
+    for (const [name, contract] of Object.entries(contracts)) {
       if (!name.includes(':') && !name.endsWith('.dbg')) {
         filteredContracts[name] = {
           abi: contract.abi,

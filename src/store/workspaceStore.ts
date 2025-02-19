@@ -1,3 +1,5 @@
+'use client';
+
 import { create } from 'zustand';
 
 export interface FileNode {
@@ -5,6 +7,7 @@ export interface FileNode {
   type: 'file' | 'folder';
   children?: FileNode[];
   content?: string;
+  isExpanded?: boolean;
 }
 
 export interface Workspace {

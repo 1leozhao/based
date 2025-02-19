@@ -1,27 +1,27 @@
-import { loader } from '@monaco-editor/react';
+'use client';
+
+import * as monaco from 'monaco-editor';
 
 // Define Solidity language configuration
-const solidityLanguageConfig = {
+const solidityLanguageConfig: monaco.languages.IMonarchLanguage = {
   defaultToken: 'invalid',
   tokenPostfix: '.sol',
 
   keywords: [
     'pragma', 'solidity', 'contract', 'library', 'interface',
-    'function', 'modifier', 'event', 'struct', 'enum',
-    'public', 'private', 'internal', 'external', 'pure',
-    'view', 'payable', 'virtual', 'override', 'abstract',
-    'returns', 'memory', 'storage', 'calldata', 'constant',
-    'immutable', 'constructor', 'mapping', 'address', 'bool',
-    'string', 'bytes', 'uint', 'int', 'fixed', 'ufixed',
+    'function', 'modifier', 'event', 'constructor',
+    'address', 'string', 'bool', 'uint', 'int', 'bytes',
+    'public', 'private', 'external', 'internal', 'payable',
+    'view', 'pure', 'constant', 'storage', 'memory', 'calldata',
     'if', 'else', 'for', 'while', 'do', 'break', 'continue',
     'return', 'throw', 'emit', 'try', 'catch', 'revert',
-    'assembly', 'import', 'from', 'as', 'using', 'is',
-    'new', 'delete', 'require', 'assert', 'type'
+    'using', 'new', 'delete', 'mapping'
   ],
 
   typeKeywords: [
-    'address', 'bool', 'string', 'bytes', 'byte', 'int', 'uint',
-    'fixed', 'ufixed', 'mapping'
+    'contract', 'library', 'interface', 'function', 'modifier',
+    'event', 'constructor', 'address', 'string', 'bool',
+    'uint', 'int', 'bytes'
   ],
 
   operators: [
@@ -38,14 +38,13 @@ const solidityLanguageConfig = {
 
   tokenizer: {
     root: [
-      [/[a-z_$][\w$]*/, {
+      [/[a-zA-Z_]\w*/, {
         cases: {
-          '@typeKeywords': 'keyword',
+          '@typeKeywords': 'keyword.type',
           '@keywords': 'keyword',
           '@default': 'identifier'
         }
       }],
-      [/[A-Z][\w$]*/, 'type.identifier'],
       { include: '@whitespace' },
       [/[{}()\[\]]/, '@brackets'],
       [/[<>](?!@symbols)/, '@brackets'],
@@ -60,10 +59,7 @@ const solidityLanguageConfig = {
       [/\d+/, 'number'],
       [/[;,.]/, 'delimiter'],
       [/"([^"\\]|\\.)*$/, 'string.invalid'],
-      [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }],
-      [/'[^\\']'/, 'string'],
-      [/(')(@escapes)(')/, ['string', 'string.escape', 'string']],
-      [/'/, 'string.invalid']
+      [/"/, { token: 'string.quote', bracket: '@open', next: '@string' }]
     ],
     comment: [
       [/[^\/*]+/, 'comment'],
@@ -86,65 +82,54 @@ const solidityLanguageConfig = {
 };
 
 // Configure Monaco Editor
-export const configureMonaco = () => {
-  loader.init().then(monaco => {
-    // Register Solidity language
-    monaco.languages.register({ id: 'solidity' });
-    monaco.languages.setMonarchTokensProvider('solidity', solidityLanguageConfig);
+export function configureMonaco() {
+  // Register Solidity language
+  monaco.languages.register({ id: 'solidity' });
+  monaco.languages.setMonarchTokensProvider('solidity', solidityLanguageConfig);
 
-    // Set light theme (0x.org inspired)
-    monaco.editor.defineTheme('based-light', {
-      base: 'vs',
-      inherit: true,
-      rules: [
-        { token: 'keyword', foreground: '2563eb' },  // Primary blue
-        { token: 'type.identifier', foreground: '4f46e5' }, // Secondary purple
-        { token: 'identifier', foreground: '111827' }, // Text primary
-        { token: 'string', foreground: '059669' }, // Green
-        { token: 'number', foreground: 'dc2626' }, // Red
-        { token: 'comment', foreground: '6b7280' }, // Gray
-      ],
-      colors: {
-        'editor.background': '#ffffff',
-        'editor.foreground': '#111827',
-        'editorLineNumber.foreground': '#9ca3af',
-        'editorLineNumber.activeForeground': '#4b5563',
-        'editor.selectionBackground': '#e5e7eb',
-        'editor.inactiveSelectionBackground': '#f3f4f6',
-        'editorIndentGuide.background': '#f3f4f6',
-        'editorIndentGuide.activeBackground': '#e5e7eb',
-        'editor.lineHighlightBackground': '#f8fafc',
-        'editor.lineHighlightBorder': '#f1f5f9',
-      }
-    });
-
-    // Set dark theme (Night Owl inspired)
-    monaco.editor.defineTheme('based-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'keyword', foreground: '82AAFF' }, // Light blue
-        { token: 'type.identifier', foreground: 'C792EA' }, // Purple
-        { token: 'identifier', foreground: 'D6DEEB' }, // White-blue
-        { token: 'string', foreground: 'ECC48D' }, // Light orange
-        { token: 'number', foreground: 'F78C6C' }, // Orange
-        { token: 'comment', foreground: '637777' }, // Gray
-      ],
-      colors: {
-        'editor.background': '#011627',
-        'editor.foreground': '#d6deeb',
-        'editorLineNumber.foreground': '#4b6479',
-        'editorLineNumber.activeForeground': '#c5e4fd',
-        'editor.selectionBackground': '#1d3b53',
-        'editor.inactiveSelectionBackground': '#0b2942',
-        'editor.lineHighlightBackground': '#0b2942',
-        'editor.lineHighlightBorder': '#122d42',
-        'editorIndentGuide.background': '#0b2942',
-        'editorIndentGuide.activeBackground': '#1d3b53',
-      }
-    });
-
-    // Set default theme
-    monaco.editor.setTheme('based-light');
+  // Set light theme (0x.org inspired)
+  monaco.editor.defineTheme('based-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: 'keyword', foreground: '0000FF', fontStyle: 'bold' },
+      { token: 'keyword.type', foreground: '0000FF' },
+      { token: 'string', foreground: 'D16969' },
+      { token: 'number', foreground: '098658' },
+      { token: 'delimiter', foreground: '000000' },
+      { token: 'operator', foreground: '000000' },
+      { token: 'comment', foreground: '008000' },
+    ],
+    colors: {
+      'editor.background': '#FFFFFF',
+      'editor.foreground': '#000000',
+      'editor.lineHighlightBackground': '#F7F7F7',
+      'editorCursor.foreground': '#000000',
+      'editor.selectionBackground': '#ADD6FF',
+      'editor.inactiveSelectionBackground': '#E5EBF1',
+    }
   });
-}; 
+
+  // Set dark theme
+  monaco.editor.defineTheme('based-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword', foreground: '569CD6', fontStyle: 'bold' },
+      { token: 'keyword.type', foreground: '569CD6' },
+      { token: 'string', foreground: 'CE9178' },
+      { token: 'number', foreground: 'B5CEA8' },
+      { token: 'delimiter', foreground: 'D4D4D4' },
+      { token: 'operator', foreground: 'D4D4D4' },
+      { token: 'comment', foreground: '6A9955' },
+    ],
+    colors: {
+      'editor.background': '#1E1E1E',
+      'editor.foreground': '#D4D4D4',
+      'editor.lineHighlightBackground': '#2D2D2D',
+      'editorCursor.foreground': '#FFFFFF',
+      'editor.selectionBackground': '#264F78',
+      'editor.inactiveSelectionBackground': '#3A3D41',
+    }
+  });
+} 

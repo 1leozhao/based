@@ -1,3 +1,5 @@
+'use client';
+
 import { createConfig, http } from 'wagmi';
 import { baseSepolia, base } from 'viem/chains';
 import { injected } from 'wagmi/connectors';

@@ -1,7 +1,9 @@
-require("@nomicfoundation/hardhat-toolbox");
+import { HardhatUserConfig } from "hardhat/config";
+import "@nomicfoundation/hardhat-toolbox";
+import "@nomicfoundation/hardhat-ethers";
 require("dotenv").config();
 
-const config = {
+const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.24",
     settings: {
@@ -12,6 +14,7 @@ const config = {
     },
   },
   networks: {
+    hardhat: {},
     // Base Sepolia (testnet)
     "base-sepolia": {
       url: 'https://sepolia.base.org',
@@ -33,4 +36,4 @@ const config = {
   },
 };
 
-module.exports = config; 
+export default config; 

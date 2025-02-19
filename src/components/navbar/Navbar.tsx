@@ -16,7 +16,7 @@ export default function Navbar() {
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
-  const { openFiles, activeFileId, newFile, saveFile, undo, redo, compile, deploy } = useEditorStore();
+  const { activeFileId, newFile, openFile, saveFile, undo, redo, compile, deploy } = useEditorStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -57,7 +57,7 @@ export default function Navbar() {
     if (!file) return;
 
     const content = await file.text();
-    newFile();
+    openFile(file.name, content);
   };
 
   const handleSave = () => {

@@ -1,3 +1,5 @@
+'use client';
+
 import { ethers } from 'ethers';
 import { baseSepolia, base } from 'viem/chains';
 import { toast } from 'react-hot-toast';
@@ -26,6 +28,11 @@ export const deployContract = async (
   signer: ethers.Signer
 ) => {
   try {
+    // Check for browser environment and ethereum provider
+    if (typeof window === 'undefined' || !window.ethereum) {
+      throw new Error('This function can only be called in a browser environment with MetaMask installed');
+    }
+
     // Get the current chain ID
     const network = await signer.provider?.getNetwork();
     const chainId = network?.chainId;

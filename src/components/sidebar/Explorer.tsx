@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useEditorStore } from '@/store/editorStore';
-import { useWorkspaceStore, type FileNode, type Workspace } from '@/store/workspaceStore';
+import { useWorkspaceStore, type FileNode } from '@/store/workspaceStore';
 import { getFileType, getFileIcon } from '@/utils/fileIcons';
 import { getDefaultContent } from '@/utils/templates';
 import ResizeHandle from './ResizeHandle';
@@ -12,8 +12,7 @@ export default function Explorer() {
   const { explorerWidth, setExplorerWidth, openFile } = useEditorStore();
   const { 
     workspaces, 
-    activeWorkspace, 
-    setWorkspaces,
+    activeWorkspace,
     setActiveWorkspace,
     addWorkspace,
     updateWorkspace
@@ -28,6 +27,7 @@ export default function Explorer() {
   const [showCreateMenu, setShowCreateMenu] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
 
   const currentWorkspace = workspaces.find(w => w.name === activeWorkspace);
 
@@ -94,7 +94,6 @@ export default function Explorer() {
           }
         ]
       });
-      setActiveWorkspace(newName);
       setIsCreatingWorkspace(false);
       setNewFileName('');
       setIsWorkspaceDropdownOpen(false);
@@ -261,38 +260,50 @@ export default function Explorer() {
     </div>
   );
 
+  const isNodeExpanded = (path: string) => expandedNodes.has(path);
+
+  const toggleNode = (path: string) => {
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(path)) {
+      newExpanded.delete(path);
+    } else {
+      newExpanded.add(path);
+    }
+    setExpandedNodes(newExpanded);
+  };
+
   const renderFileTree = (nodes: FileNode[], path: string[] = []) => {
     return nodes.map((node) => {
-      const fullPath = [...path, node.name];
-      const uniqueKey = fullPath.join('|');
-      const isExpanded = node.isExpanded !== false;
+      const fullPath = [...path, node.name].join('/');
+      const isExpanded = isNodeExpanded(fullPath);
+      const uniqueKey = [...path, node.name].join('|');
       const fileType = node.type === 'folder' ? 'folder' : getFileType(node.name);
 
       return (
-        <div key={uniqueKey} className="relative">
-          {/* Tree structure lines - only show for non-root items */}
-          {path.length > 0 && path.map((_, index) => (
-            <div
-              key={index}
-              className="absolute w-px bg-[var(--border-color)]"
-              style={{
-                left: `calc(${index * 1.25}rem + 0.75rem)`,
-                top: 0,
-                bottom: 0,
-                width: '1px'
-              }}
-            />
-          ))}
+        <div key={uniqueKey}>
           <div
-            className="flex items-center space-x-2 cursor-pointer text-[var(--text-primary)] hover:text-[var(--primary-color)]"
+            className={`flex items-center px-2 py-1 hover:bg-[var(--hover-bg)] rounded-lg cursor-pointer relative group ${
+              hoveredNode === uniqueKey ? 'bg-[var(--hover-bg)]' : ''
+            }`}
             style={{ paddingLeft: `${path.length * 1.25}rem` }}
-            onMouseEnter={() => setHoveredNode(node.name)}
-            onMouseLeave={() => {
-              setHoveredNode(null);
-              if (!showCreateMenu) setShowCreateMenu(null);
-            }}
+            onClick={() => node.type === 'file' ? handleFileClick(node) : toggleNode(fullPath)}
+            onMouseEnter={() => setHoveredNode(uniqueKey)}
+            onMouseLeave={() => setHoveredNode(null)}
           >
-            <div className="flex items-center space-x-2" onClick={() => handleFileClick(node)}>
+            {/* Tree structure lines - only show for non-root items */}
+            {path.length > 0 && path.map((_, index) => (
+              <div
+                key={index}
+                className="absolute w-px bg-[var(--border-color)]"
+                style={{
+                  left: `calc(${index * 1.25}rem + 0.75rem)`,
+                  top: 0,
+                  bottom: 0,
+                  width: '1px'
+                }}
+              />
+            ))}
+            <div className="flex items-center space-x-2">
               {getFileIcon(fileType)}
               <span>{node.name}</span>
             </div>
@@ -301,7 +312,9 @@ export default function Explorer() {
             <div className="flex items-center ml-auto">
               {node.type === 'folder' && (
                 <button
-                  className="p-1 rounded hover:bg-[var(--hover-bg)] text-[var(--text-primary)] transition-transform duration-200"
+                  className={`p-1 rounded hover:bg-[var(--hover-bg)] text-[var(--text-primary)] transition-transform duration-200 ${
+                    hoveredNode !== uniqueKey ? 'opacity-0' : 'opacity-100'
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleFolder(node, path);
@@ -317,7 +330,7 @@ export default function Explorer() {
               )}
               
               {/* Action buttons on hover */}
-              {hoveredNode === node.name && (
+              {hoveredNode === uniqueKey && (
                 <div className="flex space-x-1">
                   {node.type === 'folder' && (
                     <button

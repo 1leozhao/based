@@ -8,6 +8,7 @@ import DiffEditor from './DiffEditor';
 import Terminal from '../terminal/Terminal';
 
 export default function CodeEditor() {
+  const [mounted, setMounted] = useState(false);
   const {
     openFiles,
     activeFileId,
@@ -21,20 +22,21 @@ export default function CodeEditor() {
     setActiveFile
   } = useEditorStore();
   const [isTerminalVisible, setIsTerminalVisible] = useState(false);
-  const [terminalHeight, setTerminalHeight] = useState(256);
-  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null);
   const activityBarWidth = 48;
   const totalSidebarWidth = explorerWidth + activityBarWidth;
 
   const activeFile = openFiles.find(f => f.id === activeFileId);
 
   useEffect(() => {
+    setMounted(true);
     configureMonaco();
   }, []);
 
   const handleEditorChange = (value: string | undefined) => {
     if (value && activeFileId) setCode(activeFileId, value);
   };
+
+  if (!mounted) return null;
 
   return (
     <div 
@@ -164,7 +166,6 @@ export default function CodeEditor() {
       {isTerminalVisible && (
         <Terminal
           isVisible={isTerminalVisible}
-          onResize={setTerminalHeight}
         />
       )}
     </div>

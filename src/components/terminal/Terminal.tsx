@@ -1,10 +1,10 @@
+'use client';
+
 import { useState, useRef, useEffect } from 'react';
-import { useAccount, useBalance, usePublicClient, useWalletClient, useChainId, useConfig } from 'wagmi';
+import { useAccount, useBalance, useWalletClient, useChainId, useConfig } from 'wagmi';
 import { deployContract, getAvailableContracts } from '@/services/deploymentService';
-import { useEditorStore } from '@/store/editorStore';
-import { toast } from 'react-hot-toast';
-import { ethers } from 'ethers';
 import { useWorkspaceStore, type FileNode } from '@/store/workspaceStore';
+import { ethers } from 'ethers';
 
 interface TerminalCommand {
   input: string;
@@ -14,7 +14,7 @@ interface TerminalCommand {
 
 interface TerminalProps {
   isVisible: boolean;
-  onResize: (height: number) => void;
+  onResize?: (height: number) => void;
 }
 
 const MIN_TERMINAL_HEIGHT = 150; // Minimum height in pixels
@@ -24,6 +24,7 @@ const MAX_TERMINAL_HEIGHT = 500; // Maximum height in pixels
 const BASE_SEPOLIA_CHAIN_ID = 84532;
 
 export default function Terminal({ isVisible, onResize }: TerminalProps) {
+  const [mounted, setMounted] = useState(false);
   const [commands, setCommands] = useState<TerminalCommand[]>([]);
   const [currentCommand, setCurrentCommand] = useState('');
   const [terminalHeight, setTerminalHeight] = useState(256);
@@ -34,17 +35,19 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
   const { address } = useAccount();
   const config = useConfig();
   const chainId = useChainId();
-  const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { data: balance, isLoading: isBalanceLoading, error: balanceError } = useBalance({
     address,
     chainId,
   });
-  const { openFiles, activeFileId } = useEditorStore();
-  const activeFile = openFiles.find(f => f.id === activeFileId);
 
   // Get current chain from config
   const chain = config.chains.find(c => c.id === chainId);
+
+  // Add mounted effect
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isVisible && inputRef.current) {
@@ -63,11 +66,11 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
       if (isResizing) {
         const topOffset = 56; // Height of the navbar (14 * 4 = 56px)
         const terminalTop = e.clientY - topOffset;
-        const windowHeight = window.innerHeight - topOffset;
+        const windowHeight = typeof window !== 'undefined' ? window.innerHeight - topOffset : 800;
         const newHeight = windowHeight - terminalTop;
         const clampedHeight = Math.min(Math.max(newHeight, MIN_TERMINAL_HEIGHT), MAX_TERMINAL_HEIGHT);
         setTerminalHeight(clampedHeight);
-        onResize(clampedHeight);
+        onResize?.(clampedHeight);
       }
     };
 
@@ -200,10 +203,10 @@ RPC URL: ${chain.rpcUrls.default.http[0]}`;
                   contractsByFile[file].push(name);
                 });
 
-                // Create a simplified output
+                // Update the contracts listing to show both file and contract names
                 const filesList = Object.entries(contractsByFile)
-                  .map(([file, names]) => `${file}`)
-                  .join('\n');
+                  .map(([file, contractNames]) => `${file}:\n  ${contractNames.join('\n  ')}`)
+                  .join('\n\n');
 
                 newCommand.output = `Available Solidity files:
 ${filesList}
@@ -260,6 +263,11 @@ ${Object.keys(contracts.reduce((acc: { [key: string]: boolean }, { file }) => {
 
                 newCommand.output = `Deploying ${contract.name} from ${fileName} to ${chain.name}...`;
                 setCommands(prev => [...prev, { ...newCommand }]);
+
+                // Add check for ethereum provider
+                if (typeof window === 'undefined' || !window.ethereum) {
+                  throw new Error('MetaMask not detected. Please install MetaMask and try again.');
+                }
 
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const signer = await provider.getSigner();
@@ -327,7 +335,7 @@ Please specify which contract to deploy using its name:
     }
   };
 
-  if (!isVisible) return null;
+  if (!mounted || !isVisible) return null;
 
   return (
     <div 
