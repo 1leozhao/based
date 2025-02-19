@@ -92,26 +92,59 @@ export const configureMonaco = () => {
     monaco.languages.register({ id: 'solidity' });
     monaco.languages.setMonarchTokensProvider('solidity', solidityLanguageConfig);
 
-    // Set editor theme
-    monaco.editor.defineTheme('baseide-dark', {
+    // Set light theme (0x.org inspired)
+    monaco.editor.defineTheme('based-light', {
+      base: 'vs',
+      inherit: true,
+      rules: [
+        { token: 'keyword', foreground: '2563eb' },  // Primary blue
+        { token: 'type.identifier', foreground: '4f46e5' }, // Secondary purple
+        { token: 'identifier', foreground: '111827' }, // Text primary
+        { token: 'string', foreground: '059669' }, // Green
+        { token: 'number', foreground: 'dc2626' }, // Red
+        { token: 'comment', foreground: '6b7280' }, // Gray
+      ],
+      colors: {
+        'editor.background': '#ffffff',
+        'editor.foreground': '#111827',
+        'editorLineNumber.foreground': '#9ca3af',
+        'editorLineNumber.activeForeground': '#4b5563',
+        'editor.selectionBackground': '#e5e7eb',
+        'editor.inactiveSelectionBackground': '#f3f4f6',
+        'editorIndentGuide.background': '#f3f4f6',
+        'editorIndentGuide.activeBackground': '#e5e7eb',
+        'editor.lineHighlightBackground': '#f8fafc',
+        'editor.lineHighlightBorder': '#f1f5f9',
+      }
+    });
+
+    // Set dark theme (Night Owl inspired)
+    monaco.editor.defineTheme('based-dark', {
       base: 'vs-dark',
       inherit: true,
       rules: [
-        { token: 'keyword', foreground: '569CD6' },
-        { token: 'type.identifier', foreground: '4EC9B0' },
-        { token: 'identifier', foreground: '9CDCFE' },
-        { token: 'string', foreground: 'CE9178' },
-        { token: 'number', foreground: 'B5CEA8' },
-        { token: 'comment', foreground: '6A9955' },
+        { token: 'keyword', foreground: '82AAFF' }, // Light blue
+        { token: 'type.identifier', foreground: 'C792EA' }, // Purple
+        { token: 'identifier', foreground: 'D6DEEB' }, // White-blue
+        { token: 'string', foreground: 'ECC48D' }, // Light orange
+        { token: 'number', foreground: 'F78C6C' }, // Orange
+        { token: 'comment', foreground: '637777' }, // Gray
       ],
       colors: {
-        'editor.background': '#1f2937',
-        'editor.foreground': '#d4d4d4',
-        'editorLineNumber.foreground': '#6b7280',
-        'editorLineNumber.activeForeground': '#d4d4d4',
-        'editor.selectionBackground': '#264f78',
-        'editor.inactiveSelectionBackground': '#3a3d41',
+        'editor.background': '#011627',
+        'editor.foreground': '#d6deeb',
+        'editorLineNumber.foreground': '#4b6479',
+        'editorLineNumber.activeForeground': '#c5e4fd',
+        'editor.selectionBackground': '#1d3b53',
+        'editor.inactiveSelectionBackground': '#0b2942',
+        'editor.lineHighlightBackground': '#0b2942',
+        'editor.lineHighlightBorder': '#122d42',
+        'editorIndentGuide.background': '#0b2942',
+        'editorIndentGuide.activeBackground': '#1d3b53',
       }
     });
+
+    // Set default theme
+    monaco.editor.setTheme('based-light');
   });
 }; 

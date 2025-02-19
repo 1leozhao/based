@@ -46,7 +46,7 @@ export default function Menu({ label, items }: MenuProps) {
   return (
     <div className="relative" ref={menuRef}>
       <button
-        className="text-gray-300 hover:text-white px-2 py-1 rounded"
+        className="text-[var(--text-primary)] hover:text-[var(--text-primary)] px-2 py-1 rounded"
         onClick={() => setIsOpen(!isOpen)}
       >
         {label}
@@ -61,7 +61,7 @@ export default function Menu({ label, items }: MenuProps) {
                   <hr className="my-1 border-[var(--border-color)]" />
                 ) : (
                   <button
-                    className="w-full px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-800 flex justify-between items-center"
+                    className="w-full px-4 py-2 text-sm text-[var(--text-primary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] flex justify-between items-center"
                     onClick={() => {
                       item.onClick?.();
                       setIsOpen(false);
@@ -69,7 +69,7 @@ export default function Menu({ label, items }: MenuProps) {
                   >
                     <span>{item.label}</span>
                     {item.shortcut && (
-                      <span className="text-gray-500 text-xs">{item.shortcut}</span>
+                      <span className="text-[var(--text-secondary)] text-xs">{item.shortcut}</span>
                     )}
                   </button>
                 )}

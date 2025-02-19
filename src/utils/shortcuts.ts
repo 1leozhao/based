@@ -17,6 +17,7 @@ export function useKeyboardShortcuts() {
     redo,
     compile,
     deploy,
+    toggleDiffView,
   } = useEditorStore();
 
   const {
@@ -38,6 +39,7 @@ export function useKeyboardShortcuts() {
       { key: 'e', metaKey: true, shiftKey: true, handler: toggleExplorer },
       { key: 'f', metaKey: true, shiftKey: true, handler: toggleSearch },
       { key: 'm', metaKey: true, shiftKey: true, handler: toggleProblems },
+      { key: '\\', metaKey: true, handler: toggleDiffView },
     ];
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -64,6 +66,7 @@ export function useKeyboardShortcuts() {
     redo,
     compile,
     deploy,
+    toggleDiffView,
     toggleCommandPalette,
     toggleExplorer,
     toggleSearch,

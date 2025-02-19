@@ -1,29 +1,21 @@
-'use client';
-
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { WagmiProvider } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { config } from '@/config/web3';
-import { Toaster } from 'react-hot-toast';
+import { metadata } from './metadata';
+import ClientProviders from '@/components/providers/ClientProviders';
 
 const inter = Inter({ subsets: ["latin"] });
-const queryClient = new QueryClient();
+
+export { metadata };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <WagmiProvider config={config}>
-          <QueryClientProvider client={queryClient}>
-            {children}
-            <Toaster position="bottom-right" />
-          </QueryClientProvider>
-        </WagmiProvider>
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );

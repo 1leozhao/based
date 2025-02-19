@@ -7,6 +7,10 @@ interface EditorState {
   isModified: boolean;
   history: string[];
   historyIndex: number;
+  isDiffViewEnabled: boolean;
+  originalCode: string | null;
+  theme: 'light' | 'dark';
+  explorerWidth: number;
   setCode: (code: string) => void;
   setFileName: (name: string) => void;
   newFile: () => void;
@@ -16,13 +20,39 @@ interface EditorState {
   redo: () => void;
   compile: () => Promise<void>;
   deploy: () => Promise<void>;
+  toggleDiffView: () => void;
+  setOriginalCode: (code: string) => void;
+  toggleTheme: () => void;
+  setExplorerWidth: (width: number) => void;
 }
 
 const defaultCode = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 contract Based {
-    // Your code here
+    string public message;
+    address public owner;
+    
+    event MessageUpdated(string newMessage);
+    
+    constructor() {
+        message = "Hello, Base!";
+        owner = msg.sender;
+    }
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not the owner");
+        _;
+    }
+    
+    function updateMessage(string memory newMessage) public onlyOwner {
+        message = newMessage;
+        emit MessageUpdated(newMessage);
+    }
+    
+    function getMessage() public view returns (string memory) {
+        return message;
+    }
 }`;
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -31,6 +61,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isModified: false,
   history: [defaultCode],
   historyIndex: 0,
+  isDiffViewEnabled: false,
+  originalCode: null,
+  theme: 'dark',
+  explorerWidth: 300,
 
   setCode: (code: string) => {
     const { history, historyIndex } = get();
@@ -52,6 +86,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isModified: false,
       history: [defaultCode],
       historyIndex: 0,
+      isDiffViewEnabled: false,
+      originalCode: null,
     });
   },
 
@@ -77,12 +113,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         isModified: false,
         history: [content],
         historyIndex: 0,
+        isDiffViewEnabled: false,
+        originalCode: null,
       });
     } catch (error) {
       console.error('Error reading file:', error);
       throw error;
     }
   },
+
+  toggleDiffView: () => {
+    const { isDiffViewEnabled, code, originalCode } = get();
+    if (!isDiffViewEnabled && !originalCode) {
+      // If enabling diff view and no original code exists, use the current code
+      set({ 
+        isDiffViewEnabled: true,
+        originalCode: code 
+      });
+    } else {
+      set({ isDiffViewEnabled: !isDiffViewEnabled });
+    }
+  },
+
+  setOriginalCode: (code: string) => set({ originalCode: code }),
 
   undo: () => {
     const { history, historyIndex } = get();
@@ -155,4 +208,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       throw error;
     }
   },
+
+  toggleTheme: () => {
+    const { theme } = get();
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    set({ theme: newTheme });
+  },
+
+  setExplorerWidth: (width: number) => set({ explorerWidth: width }),
 })); 

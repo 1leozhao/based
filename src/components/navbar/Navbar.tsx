@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import Menu from './Menu';
-import Settings from './Settings';
+import NetworkSelector from './NetworkSelector';
 import { useEditorStore } from '@/store/editorStore';
 import { useKeyboardShortcuts } from '@/utils/shortcuts';
 import { useRef, useState, useEffect } from 'react';
@@ -120,7 +120,7 @@ export default function Navbar() {
               {isConnected ? displayAddress : 'Connect MetaMask'}
             </button>
           )}
-          <Settings />
+          <NetworkSelector />
         </div>
       </div>
     </nav>
