@@ -108,26 +108,4 @@ export function configureMonaco() {
       'editor.inactiveSelectionBackground': '#E5EBF1',
     }
   });
-
-  // Set dark theme
-  monaco.editor.defineTheme('based-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: 'keyword', foreground: '569CD6', fontStyle: 'bold' },
-      { token: 'keyword.type', foreground: '569CD6' },
-      { token: 'string', foreground: 'CE9178' },
-      { token: 'number', foreground: 'B5CEA8' },
-      { token: 'delimiter', foreground: 'D4D4D4' },
-      { token: 'operator', foreground: 'D4D4D4' },
-      { token: 'comment', foreground: '6A9955' },
-    ],
-    colors: {
-      'editor.foreground': '#D4D4D4',
-      'editor.lineHighlightBackground': '#2D2D2D',
-      'editorCursor.foreground': '#FFFFFF',
-      'editor.selectionBackground': '#264F78',
-      'editor.inactiveSelectionBackground': '#3A3D41',
-    }
-  });
 } 

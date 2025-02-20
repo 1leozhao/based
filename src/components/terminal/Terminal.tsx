@@ -27,7 +27,7 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
   const [mounted, setMounted] = useState(false);
   const [commands, setCommands] = useState<TerminalCommand[]>([]);
   const [currentCommand, setCurrentCommand] = useState('');
-  const [terminalHeight, setTerminalHeight] = useState(256);
+  const [terminalHeight, setTerminalHeight] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -64,12 +64,14 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizing) {
-        const topOffset = 56; // Height of the navbar (14 * 4 = 56px)
-        const terminalTop = e.clientY - topOffset;
-        const windowHeight = typeof window !== 'undefined' ? window.innerHeight - topOffset : 800;
-        const newHeight = windowHeight - terminalTop;
+        const terminalRect = terminalRef.current?.getBoundingClientRect();
+        if (!terminalRect) return;
+
+        const mouseY = e.clientY;
+        const terminalBottom = terminalRect.bottom;
+        const newHeight = terminalBottom - mouseY;
         const clampedHeight = Math.min(Math.max(newHeight, MIN_TERMINAL_HEIGHT), MAX_TERMINAL_HEIGHT);
-        setTerminalHeight(clampedHeight);
+        
         onResize?.(clampedHeight);
       }
     };
@@ -335,7 +337,6 @@ Please specify which contract to deploy using its name:
     e.preventDefault();
     e.stopPropagation();
     setIsResizing(true);
-    document.body.style.cursor = 'row-resize';
   };
 
   const handleCommandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,8 +354,8 @@ Please specify which contract to deploy using its name:
 
   return (
     <div 
-      style={{ height: terminalHeight }}
-      className="relative bg-[#1a1a1a] border-t border-[var(--border-color)] text-white"
+      ref={terminalRef}
+      className="h-full flex flex-col bg-[#1a1a1a] text-white"
     >
       {/* Resize Handle */}
       <div
@@ -383,7 +384,7 @@ Please specify which contract to deploy using its name:
       {/* Terminal Content */}
       <div 
         ref={contentRef}
-        className="h-[calc(100%-80px)] overflow-y-auto p-4 font-mono text-sm"
+        className="flex-1 overflow-y-auto p-4 font-mono text-sm"
         onClick={() => {
           if (inputRef.current) {
             inputRef.current.focus();

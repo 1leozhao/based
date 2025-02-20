@@ -24,6 +24,7 @@ export default function CodeEditor() {
     setActiveFile
   } = useEditorStore();
   const [isTerminalVisible, setIsTerminalVisible] = useState(false);
+  const [terminalHeight, setTerminalHeight] = useState(300);
   const activityBarWidth = 48;
   const totalSidebarWidth = explorerWidth + activityBarWidth;
 
@@ -43,6 +44,10 @@ export default function CodeEditor() {
     if (value && activeFileId) setCode(activeFileId, value);
   };
 
+  const handleTerminalResize = (height: number) => {
+    setTerminalHeight(height);
+  };
+
   if (!mounted) return null;
 
   return (
@@ -54,41 +59,43 @@ export default function CodeEditor() {
       }}
     >
       {/* Tabs */}
-      <div className="h-10 border-b border-[var(--border-color)] flex items-center px-2 bg-[var(--navbar-bg)]">
-        <div className="flex-1 flex items-center space-x-1 overflow-x-auto">
-          <div className="flex overflow-x-auto border-b border-[var(--border-color)] bg-[var(--editor-bg)]">
+      <div className="h-10 flex items-center bg-[var(--editor-bg)]">
+        <div className="flex-1 flex items-center">
+          <div className="flex">
             {openFiles.map((file) => (
               <div
                 key={file.id}
-                className={`flex items-center px-4 py-2 min-w-[120px] max-w-[200px] border-r border-[var(--border-color)] cursor-pointer transition-colors ${
+                className={`group relative flex items-center h-9 px-3 border-r border-[var(--border-color)] cursor-pointer transition-colors ${
                   file.id === activeFileId
-                    ? 'bg-[var(--active-tab-bg)] text-[var(--text-primary)]'
-                    : 'bg-[var(--editor-bg)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
+                    ? 'bg-[var(--editor-bg)] text-[var(--text-primary)] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-[var(--primary-color)]'
+                    : 'bg-[var(--navbar-bg)] text-[var(--text-secondary)] hover:bg-[var(--editor-bg)]'
                 }`}
                 onClick={() => setActiveFile(file.id)}
               >
-                <div className="flex-1 truncate text-sm">
-                  {file.fileName}
-                  {file.isModified && ' •'}
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm truncate max-w-[120px]">
+                    {file.fileName}
+                    {file.isModified && <span className="ml-1 opacity-60">●</span>}
+                  </span>
+                  {file.id === activeFileId && (
+                    <button
+                      className="opacity-0 group-hover:opacity-100 ml-1 p-0.5 rounded-sm hover:bg-[var(--hover-bg)] text-[var(--text-secondary)]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeFile(file.id);
+                      }}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
-                {file.id === activeFileId && (
-                  <button
-                    className="ml-2 p-1 rounded-sm hover:bg-[var(--hover-bg)] text-[var(--text-secondary)]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeFile(file.id);
-                    }}
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
               </div>
             ))}
           </div>
         </div>
-        <div className="flex items-center space-x-2 ml-2">
+        <div className="flex items-center space-x-2 px-2 border-l border-[var(--border-color)]">
           <button
             onClick={() => setIsTerminalVisible(!isTerminalVisible)}
             className={`px-3 py-1 rounded-lg transition-colors ${
@@ -134,64 +141,69 @@ export default function CodeEditor() {
       </div>
 
       {/* Editor */}
-      {activeFile ? (
-        isDiffViewEnabled ? (
-          <DiffEditor />
+      <div className="flex-1 relative">
+        {activeFile ? (
+          isDiffViewEnabled ? (
+            <DiffEditor />
+          ) : (
+            <div className="h-full bg-[var(--editor-bg)]">
+              <Editor
+                height="100%"
+                defaultLanguage={fileType}
+                language={fileType}
+                theme="based-light"
+                value={activeFile.code}
+                onChange={handleEditorChange}
+                beforeMount={(monaco) => {
+                  monaco.editor.setTheme('based-light');
+                }}
+                onMount={(editor, monaco) => {
+                  monaco.editor.setTheme('based-light');
+                  const editorElement = editor.getContainerDomNode();
+                  editorElement.style.backgroundColor = 'var(--editor-bg)';
+                  // Also set background for the monaco-editor root element
+                  const rootElement = editorElement.querySelector('.monaco-editor');
+                  if (rootElement) {
+                    (rootElement as HTMLElement).style.backgroundColor = 'var(--editor-bg)';
+                  }
+                }}
+                options={{
+                  minimap: { enabled: true },
+                  fontSize: 14,
+                  lineNumbers: 'on',
+                  roundedSelection: false,
+                  scrollBeyondLastLine: false,
+                  readOnly: false,
+                  automaticLayout: true,
+                  padding: { top: 0, bottom: 0 },
+                  lineNumbersMinChars: 3,
+                  glyphMargin: false,
+                  folding: true,
+                  lineDecorationsWidth: 0,
+                  wordWrap: 'on',
+                  renderWhitespace: 'selection',
+                  formatOnPaste: true,
+                  formatOnType: true,
+                }}
+              />
+            </div>
+          )
         ) : (
-          <div className="flex-1 bg-[var(--editor-bg)]">
-            <Editor
-              height="100%"
-              defaultLanguage={fileType}
-              language={fileType}
-              theme={`based-${theme}`}
-              value={activeFile.code}
-              onChange={handleEditorChange}
-              beforeMount={(monaco) => {
-                monaco.editor.setTheme(`based-${theme}`);
-              }}
-              onMount={(editor, monaco) => {
-                monaco.editor.setTheme(`based-${theme}`);
-                const editorElement = editor.getContainerDomNode();
-                editorElement.style.backgroundColor = 'var(--editor-bg)';
-                // Also set background for the monaco-editor root element
-                const rootElement = editorElement.querySelector('.monaco-editor');
-                if (rootElement) {
-                  (rootElement as HTMLElement).style.backgroundColor = 'var(--editor-bg)';
-                }
-              }}
-              options={{
-                minimap: { enabled: true },
-                fontSize: 14,
-                lineNumbers: 'on',
-                roundedSelection: false,
-                scrollBeyondLastLine: false,
-                readOnly: false,
-                automaticLayout: true,
-                padding: { top: 0, bottom: 0 },
-                lineNumbersMinChars: 3,
-                glyphMargin: false,
-                folding: true,
-                lineDecorationsWidth: 0,
-                wordWrap: 'on',
-                renderWhitespace: 'selection',
-                formatOnPaste: true,
-                formatOnType: true,
-              }}
-            />
+          <div className="flex items-center justify-center h-full text-[var(--text-secondary)]">
+            No file open
           </div>
-        )
-      ) : (
-        <div className="flex items-center justify-center h-full text-[var(--text-secondary)]">
-          No file open
-        </div>
-      )}
+        )}
 
-      {/* Terminal */}
-      {isTerminalVisible && (
-        <Terminal
-          isVisible={isTerminalVisible}
-        />
-      )}
+        {/* Terminal */}
+        {isTerminalVisible && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 z-10 border-t border-[var(--border-color)]"
+            style={{ height: `${terminalHeight}px` }}
+          >
+            <Terminal isVisible={isTerminalVisible} onResize={handleTerminalResize} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -27,7 +27,7 @@ interface EditorState {
   activeFileId: string | null;
   isDiffViewEnabled: boolean;
   originalCode: string | null;
-  theme: 'light' | 'dark';
+  theme: 'light';
   explorerWidth: number;
   searchQuery: string;
   searchResults: SearchResult[];
@@ -290,9 +290,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   toggleTheme: () => {
-    const { theme } = get();
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    set({ theme: newTheme });
+    console.log('Theme toggle functionality will be implemented in the future');
   },
 
   setExplorerWidth: (width: number) => set({ explorerWidth: width }),

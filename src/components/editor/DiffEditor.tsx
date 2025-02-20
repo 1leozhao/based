@@ -14,11 +14,11 @@ export default function DiffEditor() {
       <MonacoDiffEditor
         height="100%"
         language={fileType}
-        theme={`based-${theme}`}
+        theme="based-light"
         original={originalCode || activeFile.code}
         modified={activeFile.code}
         beforeMount={(monaco) => {
-          monaco.editor.setTheme(`based-${theme}`);
+          monaco.editor.setTheme('based-light');
         }}
         options={{
           renderSideBySide: true,
