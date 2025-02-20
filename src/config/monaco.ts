@@ -101,7 +101,6 @@ export function configureMonaco() {
       { token: 'comment', foreground: '008000' },
     ],
     colors: {
-      'editor.background': '#FFFFFF',
       'editor.foreground': '#000000',
       'editor.lineHighlightBackground': '#F7F7F7',
       'editorCursor.foreground': '#000000',
@@ -124,7 +123,6 @@ export function configureMonaco() {
       { token: 'comment', foreground: '6A9955' },
     ],
     colors: {
-      'editor.background': '#1E1E1E',
       'editor.foreground': '#D4D4D4',
       'editor.lineHighlightBackground': '#2D2D2D',
       'editorCursor.foreground': '#FFFFFF',

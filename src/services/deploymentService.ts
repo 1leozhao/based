@@ -135,18 +135,17 @@ export const getAvailableContracts = async (files: FileNode[]): Promise<Array<{ 
         const result = await response.json();
         
         if (result.contracts) {
-          // Get all contracts from this file
-          for (const compiledFile in result.contracts) {
-            for (const contractName in result.contracts[compiledFile]) {
-              // Only add the contract name if it's a valid contract (not metadata or debug info)
-              if (!contractName.includes(':') && !contractName.endsWith('.dbg')) {
-                contracts.push({
-                  name: contractName,
-                  file: file.path.join('/')
-                });
-              }
-            }
-          }
+          // Get only the contract names from this file
+          const contractNames = Object.keys(result.contracts).filter(name => 
+            !name.includes(':') && !name.endsWith('.dbg')
+          );
+          
+          contractNames.forEach(name => {
+            contracts.push({
+              name,
+              file: file.path.join('/')
+            });
+          });
         }
       } catch (error) {
         console.warn(`Error compiling file ${file.path.join('/')}:`, error);

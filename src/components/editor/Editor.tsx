@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { configureMonaco } from '@/config/monaco';
+import * as monaco from 'monaco-editor';
 import { useEditorStore } from '@/store/editorStore';
 import DiffEditor from './DiffEditor';
 import Terminal from '../terminal/Terminal';
+import { getFileType } from '@/utils/fileIcons';
 
 export default function CodeEditor() {
   const [mounted, setMounted] = useState(false);
@@ -26,11 +28,16 @@ export default function CodeEditor() {
   const totalSidebarWidth = explorerWidth + activityBarWidth;
 
   const activeFile = openFiles.find(f => f.id === activeFileId);
+  const fileType = activeFile ? getFileType(activeFile.fileName) : 'text';
 
   useEffect(() => {
     setMounted(true);
     configureMonaco();
   }, []);
+
+  useEffect(() => {
+    monaco.editor.setTheme(`based-${theme}`);
+  }, [theme]);
 
   const handleEditorChange = (value: string | undefined) => {
     if (value && activeFileId) setCode(activeFileId, value);
@@ -40,7 +47,7 @@ export default function CodeEditor() {
 
   return (
     <div 
-      className="fixed top-14 bottom-0 flex flex-col bg-[var(--editor-bg)]"
+      className="fixed top-14 bottom-0 flex flex-col"
       style={{ 
         left: `${totalSidebarWidth}px`,
         right: 0
@@ -126,18 +133,32 @@ export default function CodeEditor() {
         </div>
       </div>
 
-      {/* Editor Content */}
-      <div className="flex-1 relative">
-        {activeFile ? (
-          isDiffViewEnabled ? (
-            <DiffEditor />
-          ) : (
+      {/* Editor */}
+      {activeFile ? (
+        isDiffViewEnabled ? (
+          <DiffEditor />
+        ) : (
+          <div className="flex-1 bg-[var(--editor-bg)]">
             <Editor
               height="100%"
-              defaultLanguage="solidity"
+              defaultLanguage={fileType}
+              language={fileType}
               theme={`based-${theme}`}
               value={activeFile.code}
               onChange={handleEditorChange}
+              beforeMount={(monaco) => {
+                monaco.editor.setTheme(`based-${theme}`);
+              }}
+              onMount={(editor, monaco) => {
+                monaco.editor.setTheme(`based-${theme}`);
+                const editorElement = editor.getContainerDomNode();
+                editorElement.style.backgroundColor = 'var(--editor-bg)';
+                // Also set background for the monaco-editor root element
+                const rootElement = editorElement.querySelector('.monaco-editor');
+                if (rootElement) {
+                  (rootElement as HTMLElement).style.backgroundColor = 'var(--editor-bg)';
+                }
+              }}
               options={{
                 minimap: { enabled: true },
                 fontSize: 14,
@@ -151,16 +172,19 @@ export default function CodeEditor() {
                 glyphMargin: false,
                 folding: true,
                 lineDecorationsWidth: 0,
+                wordWrap: 'on',
+                renderWhitespace: 'selection',
+                formatOnPaste: true,
+                formatOnType: true,
               }}
-              className="h-full w-full absolute inset-0"
             />
-          )
-        ) : (
-          <div className="flex items-center justify-center h-full text-[var(--text-secondary)]">
-            No file open
           </div>
-        )}
-      </div>
+        )
+      ) : (
+        <div className="flex items-center justify-center h-full text-[var(--text-secondary)]">
+          No file open
+        </div>
+      )}
 
       {/* Terminal */}
       {isTerminalVisible && (

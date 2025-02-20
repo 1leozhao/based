@@ -83,7 +83,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeFileId: null,
   isDiffViewEnabled: false,
   originalCode: null,
-  theme: 'dark',
+  theme: 'light',
   explorerWidth: 300,
   searchQuery: '',
   searchResults: [],
@@ -292,7 +292,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleTheme: () => {
     const { theme } = get();
     const newTheme = theme === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', newTheme);
     set({ theme: newTheme });
   },
 

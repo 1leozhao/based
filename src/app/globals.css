@@ -16,6 +16,7 @@
   --text-secondary: #4b5563;
   --hover-bg: #f3f4f6;
   --button-hover: #e5e7eb;
+  --active-tab-bg: #f8fafc;
 }
 
 :root[data-theme="dark"] {
@@ -32,6 +33,7 @@
   --text-secondary: #637777;
   --hover-bg: #0b2942;
   --button-hover: #1d3b53;
+  --active-tab-bg: #0b2942;
 }
 
 body {

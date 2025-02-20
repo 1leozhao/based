@@ -17,6 +17,9 @@ export default function DiffEditor() {
         theme={`based-${theme}`}
         original={originalCode || activeFile.code}
         modified={activeFile.code}
+        beforeMount={(monaco) => {
+          monaco.editor.setTheme(`based-${theme}`);
+        }}
         options={{
           renderSideBySide: true,
           originalEditable: false,

@@ -197,22 +197,31 @@ RPC URL: ${chain.rpcUrls.default.http[0]}`;
                 // Group contracts by file
                 const contractsByFile: { [key: string]: string[] } = {};
                 contracts.forEach(({ name, file }) => {
-                  if (!contractsByFile[file]) {
-                    contractsByFile[file] = [];
+                  // If file is in root (no slashes), just use filename
+                  // Otherwise, use the full path
+                  const key = file.includes('/') ? file.split('/').slice(0, -1).join('/') + '/' : '';
+                  const fileName = file.split('/').pop() || '';
+                  
+                  if (!contractsByFile[key]) {
+                    contractsByFile[key] = [];
                   }
-                  contractsByFile[file].push(name);
+                  contractsByFile[key].push(fileName);
                 });
 
-                // Update the contracts listing to show both file and contract names
+                // Format the output
                 const filesList = Object.entries(contractsByFile)
-                  .map(([file, contractNames]) => `${file}:\n  ${contractNames.join('\n  ')}`)
+                  .map(([path, files]) => {
+                    if (path === '') {
+                      // Root files
+                      return files.join('\n');
+                    } else {
+                      // Files in folders
+                      return `${path}:\n      ${files.join('\n      ')}`;
+                    }
+                  })
                   .join('\n\n');
 
-                newCommand.output = `Available Solidity files:
-${filesList}
-
-Deploy a contract with:
-  deploy <filename.sol>`;
+                newCommand.output = `Available Solidity files:\n${filesList}\n\nDeploy a contract with:\n  deploy <filename.sol>`;
               }
             } else {
               // Deploy specific contract
@@ -228,14 +237,19 @@ Deploy a contract with:
               }
 
               // Find all contracts in the specified file
-              const fileContracts = contracts.filter(c => c.file.endsWith('/' + fileName));
+              const fileContracts = contracts.filter(c => {
+                // For files in root directory
+                if (!c.file.includes('/')) {
+                  return c.file === fileName;
+                }
+                // For files in subdirectories
+                return c.file.endsWith('/' + fileName);
+              });
               
               if (fileContracts.length === 0) {
-                newCommand.output = `File "${fileName}" not found. Available Solidity files:
-${Object.keys(contracts.reduce((acc: { [key: string]: boolean }, { file }) => {
-  acc[file] = true;
-  return acc;
-}, {})).join('\n')}`;
+                // Format available files to show full paths
+                const availableFiles = contracts.map(c => c.file).sort().join('\n');
+                newCommand.output = `File "${fileName}" not found. Available Solidity files:\n${availableFiles}`;
                 newCommand.isError = true;
               } else if (fileContracts.length === 1) {
                 // If there's only one contract in the file, deploy it automatically
