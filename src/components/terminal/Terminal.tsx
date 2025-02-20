@@ -196,7 +196,7 @@ RPC URL: ${chain.rpcUrls.default.http[0]}`;
               } else {
                 // Group contracts by file
                 const contractsByFile: { [key: string]: string[] } = {};
-                contracts.forEach(({ name, file }) => {
+                contracts.forEach(({ file }) => {
                   // If file is in root (no slashes), just use filename
                   // Otherwise, use the full path
                   const key = file.includes('/') ? file.split('/').slice(0, -1).join('/') + '/' : '';
