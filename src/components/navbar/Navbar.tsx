@@ -31,10 +31,8 @@ export default function Navbar() {
   useKeyboardShortcuts();
 
   useEffect(() => {
-    if (address) {
-      setMounted(true);
-    }
-  }, [address]);
+    setMounted(true);
+  }, []);
 
   const displayAddress = address 
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -122,8 +120,14 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 h-14 bg-[var(--navbar-bg)] border-b border-[var(--border-color)] z-50">
       <div className="h-full flex items-center justify-between px-4">
         <div className="flex items-center space-x-4">
-          <Link href="/" className="text-xl font-bold text-[var(--primary-color)]">
-            Based
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/based.png"
+              alt="Based Logo"
+              width={32}
+              height={32}
+              className="rounded"
+            />
           </Link>
           <div className="flex space-x-2">
             <Menu label="File" items={fileMenuItems} />
