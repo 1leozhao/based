@@ -1,11 +1,17 @@
 import { DiffEditor as MonacoDiffEditor } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { useEditorStore } from '@/store/editorStore';
 import { getFileType } from '@/utils/fileIcons';
+import { useEffect } from 'react';
 
 export default function DiffEditor() {
   const { openFiles, activeFileId, originalCode, theme } = useEditorStore();
   const activeFile = openFiles.find(f => f.id === activeFileId);
   const fileType = activeFile ? getFileType(activeFile.fileName) : 'text';
+
+  useEffect(() => {
+    monaco.editor.setTheme(`based-${theme}`);
+  }, [theme]);
 
   if (!activeFile) return null;
 

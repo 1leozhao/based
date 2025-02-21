@@ -349,71 +349,6 @@ export default function Explorer() {
     setDropTarget(null);
   };
 
-  // Helper function to move a node in the file tree
-  const moveNode = (nodes: FileNode[], oldPath: string[], newPath: string[]): FileNode[] => {
-    // Remove from old location
-    let nodeToMove: FileNode | undefined;
-    const removeNode = (currentNodes: FileNode[], path: string[]): FileNode[] => {
-      if (path.length === 0) return currentNodes;
-
-      const [current, ...rest] = path;
-      if (rest.length === 0) {
-        nodeToMove = currentNodes.find(n => n.name === current);
-        return currentNodes.filter(n => n.name !== current);
-      }
-
-      return currentNodes.map(node => {
-        if (node.name === current && node.type === 'folder') {
-          return {
-            ...node,
-            children: removeNode(node.children || [], rest)
-          };
-        }
-        return node;
-      });
-    };
-
-    // Add to new location
-    const addNode = (currentNodes: FileNode[], path: string[]): FileNode[] => {
-      if (!nodeToMove) return currentNodes;
-      if (path.length === 0) return [...currentNodes, nodeToMove];
-
-      const [current, ...rest] = path;
-      return currentNodes.map(node => {
-        if (node.name === current && node.type === 'folder') {
-          return {
-            ...node,
-            children: addNode(node.children || [], rest)
-          };
-        }
-        return node;
-      });
-    };
-
-    const filesAfterRemoval = removeNode(nodes, oldPath);
-    return addNode(filesAfterRemoval, newPath.slice(0, -1));
-  };
-
-  // Helper function to delete a node at path
-  const deleteNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
-    if (path.length === 0) return nodes;
-
-    const [current, ...rest] = path;
-    if (rest.length === 0) {
-      return nodes.filter(n => n.name !== current);
-    }
-
-    return nodes.map(node => {
-      if (node.name === current && node.type === 'folder') {
-        return {
-          ...node,
-          children: deleteNodeAtPath(node.children || [], rest)
-        };
-      }
-      return node;
-    });
-  };
-
   const handleDrop = (e: React.DragEvent, targetPath: string[], isTargetFolder: boolean) => {
     e.preventDefault();
     e.stopPropagation();
@@ -505,6 +440,40 @@ export default function Explorer() {
     // Create a clean copy of the source node
     const cleanSourceNode = { ...sourceNode };
 
+    // Get target folder's children
+    const targetFolder = targetParentPath.length === 0 
+      ? nodes 
+      : getChildren(findNodeByPath(nodes, targetParentPath));
+
+    // Check for name conflicts and generate a new name if needed
+    const generateUniqueName = (baseName: string): string => {
+      // Split name and extension for files
+      let nameWithoutExt = baseName;
+      let extension = '';
+      if (sourceNode.type === 'file' && baseName.includes('.')) {
+        const lastDotIndex = baseName.lastIndexOf('.');
+        nameWithoutExt = baseName.substring(0, lastDotIndex);
+        extension = baseName.substring(lastDotIndex);
+      }
+
+      // Check if the base name already has a number suffix
+      const baseNameMatch = nameWithoutExt.match(/^(.+?)(?:\((\d+)\))?$/);
+      const baseNameWithoutNumber = baseNameMatch?.[1] || nameWithoutExt;
+
+      let counter = 1;
+      let newName = baseName;
+
+      while (targetFolder.some(n => n.name === newName && n !== sourceNode)) {
+        newName = `${baseNameWithoutNumber}(${counter})${extension}`;
+        counter++;
+      }
+
+      return newName;
+    };
+
+    // Update the node name if there's a conflict
+    cleanSourceNode.name = generateUniqueName(nodeName);
+
     // Function to remove node from its original location
     const removeFromSource = (currentNodes: FileNode[], path: string[]): FileNode[] => {
       if (path.length === 0) {
@@ -553,14 +522,14 @@ export default function Explorer() {
     };
 
     // First remove the node from its source location
-    let updatedFiles = removeFromSource(nodes, sourcePath.slice(0, -1));
+    const updatedFiles = removeFromSource(nodes, sourcePath.slice(0, -1));
     
     // Then insert it at the target location
     return insertAtTarget(updatedFiles, targetParentPath);
   };
 
   const renderFileTree = (nodes: FileNode[], path: string[] = []) => {
-    return nodes.map((node, index) => {
+    return nodes.map((node) => {
       const fullPath = [...path, node.name].join('/');
       const isExpanded = isNodeExpanded(fullPath);
       const uniqueKey = [...path, node.name].join('|');

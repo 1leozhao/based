@@ -11,7 +11,6 @@ import { useRef, useState, useEffect } from 'react';
 import { useViewStore } from '@/store/viewStore';
 import BaseLogo from '@/assets/base-logo.svg';
 import Image from 'next/image';
-import { useWorkspaceStore } from '@/store/workspaceStore';
 
 export default function Navbar() {
   const { address, isConnected } = useAccount();

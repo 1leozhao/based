@@ -14,7 +14,7 @@ interface TerminalCommand {
 
 interface TerminalProps {
   isVisible: boolean;
-  onResize?: (height: number) => void;
+  onResize: (height: number) => void;
 }
 
 const MIN_TERMINAL_HEIGHT = 150; // Minimum height in pixels
@@ -27,7 +27,6 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
   const [mounted, setMounted] = useState(false);
   const [commands, setCommands] = useState<TerminalCommand[]>([]);
   const [currentCommand, setCurrentCommand] = useState('');
-  const [terminalHeight, setTerminalHeight] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
