@@ -36,30 +36,31 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
   const config = useConfig();
   const chainId = useChainId();
   const { data: walletClient } = useWalletClient();
-  const { data: balance, isLoading: isBalanceLoading, error: balanceError } = useBalance({
-    address,
-    chainId,
-  });
+  const { data: balance, isLoading: isBalanceLoading, error: balanceError } = useBalance(
+    mounted && address ? {
+      address,
+      chainId,
+    } : undefined
+  );
 
   // Get current chain from config
   const chain = config.chains.find(c => c.id === chainId);
 
-  // Add mounted effect
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (isVisible && inputRef.current) {
+    if (isVisible && inputRef.current && mounted) {
       inputRef.current.focus();
     }
-  }, [isVisible]);
+  }, [isVisible, mounted]);
 
   useEffect(() => {
-    if (terminalRef.current) {
+    if (terminalRef.current && mounted) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
-  }, [commands]);
+  }, [commands, mounted]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -97,12 +98,11 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
     };
   }, [isResizing, onResize]);
 
-  // Add new useEffect for auto-scrolling on command typing
   useEffect(() => {
-    if (contentRef.current) {
+    if (contentRef.current && mounted) {
       contentRef.current.scrollTop = contentRef.current.scrollHeight;
     }
-  }, [currentCommand, commands]);
+  }, [currentCommand, commands, mounted]);
 
   const handleCommand = async (cmd: string) => {
     const newCommand: TerminalCommand = {
@@ -116,7 +116,7 @@ export default function Terminal({ isVisible, onResize }: TerminalProps) {
         newCommand.output = `Available commands:
   help              - Show this help message
   clear             - Clear the terminal
-  balance           - Show wallet balance and network info
+  balance           - Show wallet balance
   network           - Show current network information
   deploy            - List deployable contracts
   deploy <name>     - Deploy specific contract to current network
@@ -350,7 +350,7 @@ Please specify which contract to deploy using its name:
     }
   };
 
-  if (!mounted || !isVisible) return null;
+  if (!mounted) return null;
 
   return (
     <div 

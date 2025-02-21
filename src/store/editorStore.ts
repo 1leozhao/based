@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
+import { useWorkspaceStore } from './workspaceStore';
 
 interface FileTab {
   id: string;
@@ -89,21 +90,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   searchResults: [],
 
   setCode: (id: string, code: string) => {
-    set(state => ({
-      openFiles: state.openFiles.map(file => {
-        if (file.id === id) {
-          const newHistory = [...file.history.slice(0, file.historyIndex + 1), code];
-          return {
-            ...file,
-            code,
-            isModified: true,
-            history: newHistory,
-            historyIndex: newHistory.length - 1,
-          };
-        }
-        return file;
-      }),
-    }));
+    set(state => {
+      const file = state.openFiles.find(f => f.id === id);
+      if (!file) return state;
+
+      // Update workspace store
+      const workspaceStore = useWorkspaceStore.getState();
+      const fileName = file.fileName;
+      const pathParts = fileName.split('/');
+      workspaceStore.updateFile(pathParts, code);
+
+      // Update editor state
+      return {
+        openFiles: state.openFiles.map(file => {
+          if (file.id === id) {
+            const newHistory = [...file.history.slice(0, file.historyIndex + 1), code];
+            return {
+              ...file,
+              code,
+              isModified: true,
+              history: newHistory,
+              historyIndex: newHistory.length - 1,
+            };
+          }
+          return file;
+        }),
+      };
+    });
   },
 
   openFile: (fileName: string, content: string) => {
@@ -114,6 +127,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (existingFile) {
         return { activeFileId: existingFile.id };
       }
+
+      // Add to workspace if it doesn't exist
+      const workspaceStore = useWorkspaceStore.getState();
+      const pathParts = fileName.split('/');
+      workspaceStore.addFile(pathParts, content);
 
       // Open new file
       return {
@@ -168,19 +186,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const file = openFiles.find(f => f.id === id);
     if (!file) return;
 
-    const blob = new Blob([file.code], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    // Update workspace store
+    const workspaceStore = useWorkspaceStore.getState();
+    const pathParts = file.fileName.split('/');
+    workspaceStore.updateFile(pathParts, file.code);
 
+    // Update editor state
     set(state => ({
       openFiles: state.openFiles.map(f => 
         f.id === id ? { ...f, isModified: false } : f
       ),
     }));
+
+    toast.success('File saved');
   },
 
   toggleDiffView: () => {

@@ -5,6 +5,7 @@ import Editor from '@monaco-editor/react';
 import { configureMonaco } from '@/config/monaco';
 import * as monaco from 'monaco-editor';
 import { useEditorStore } from '@/store/editorStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import DiffEditor from './DiffEditor';
 import Terminal from '../terminal/Terminal';
 import { getFileType } from '@/utils/fileIcons';
@@ -24,6 +25,7 @@ export default function CodeEditor() {
     closeFile,
     setActiveFile
   } = useEditorStore();
+  const { activeWorkspace } = useWorkspaceStore();
   const [isTerminalVisible, setIsTerminalVisible] = useState(false);
   const [terminalHeight, setTerminalHeight] = useState(300);
   const activityBarWidth = 48;
@@ -55,7 +57,7 @@ export default function CodeEditor() {
     <>
       <Navbar />
       <div 
-        className="fixed top-14 bottom-0 flex flex-col"
+        className="fixed top-14 bottom-0 flex flex-col bg-[var(--editor-bg)]"
         style={{ 
           left: `${totalSidebarWidth}px`,
           right: 0
@@ -98,7 +100,7 @@ export default function CodeEditor() {
               ))}
             </div>
           </div>
-          <div className="flex items-center space-x-2 px-2 border-l border-[var(--border-color)]">
+          <div className="flex items-center space-x-2 px-2">
             <button
               onClick={() => setIsTerminalVisible(!isTerminalVisible)}
               className={`px-3 py-1 rounded-lg transition-colors ${
@@ -149,7 +151,7 @@ export default function CodeEditor() {
             isDiffViewEnabled ? (
               <DiffEditor />
             ) : (
-              <div className="h-full bg-[var(--editor-bg)]">
+              <div className="h-full">
                 <Editor
                   height="100%"
                   defaultLanguage={fileType}
@@ -164,7 +166,6 @@ export default function CodeEditor() {
                     monaco.editor.setTheme('based-light');
                     const editorElement = editor.getContainerDomNode();
                     editorElement.style.backgroundColor = 'var(--editor-bg)';
-                    // Also set background for the monaco-editor root element
                     const rootElement = editorElement.querySelector('.monaco-editor');
                     if (rootElement) {
                       (rootElement as HTMLElement).style.backgroundColor = 'var(--editor-bg)';
@@ -192,8 +193,8 @@ export default function CodeEditor() {
               </div>
             )
           ) : (
-            <div className="flex items-center justify-center h-full text-[var(--text-secondary)]">
-              No file open
+            <div className="flex items-center justify-center h-full text-[var(--text-secondary)] bg-[var(--editor-bg)]">
+              {activeWorkspace}
             </div>
           )}
 

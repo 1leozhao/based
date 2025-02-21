@@ -1,6 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface FileNode {
   name: string;
@@ -22,6 +23,7 @@ interface WorkspaceState {
   setActiveWorkspace: (name: string) => void;
   addWorkspace: (workspace: Workspace) => void;
   updateWorkspace: (name: string, files: FileNode[]) => void;
+  deleteWorkspace: (name: string) => void;
   addFile: (path: string[], content: string) => void;
   updateFile: (path: string[], content: string) => void;
   deleteFile: (path: string[]) => void;
@@ -150,19 +152,21 @@ function searchFiles(node: FileNode, query: string, path: string[] = []): Array<
   return results;
 }
 
-export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
-  workspaces: [
-    {
-      name: 'Default Workspace',
-      files: [
+export const useWorkspaceStore = create<WorkspaceState>()(
+  persist(
+    (set, get) => ({
+      workspaces: [
         {
-          name: 'contracts',
-          type: 'folder',
-          children: [
+          name: 'Default Workspace',
+          files: [
             {
-              name: 'Based.sol',
-              type: 'file',
-              content: `// SPDX-License-Identifier: MIT
+              name: 'contracts',
+              type: 'folder',
+              children: [
+                {
+                  name: 'Based.sol',
+                  type: 'file',
+                  content: `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 contract Based {
@@ -190,82 +194,100 @@ contract Based {
         return message;
     }
 }`
+                }
+              ]
             }
           ]
         }
-      ]
+      ],
+      activeWorkspace: 'Default Workspace',
+
+      setWorkspaces: (workspaces) => set({ workspaces }),
+      setActiveWorkspace: (name) => set({ activeWorkspace: name }),
+      addWorkspace: (workspace) => set(state => ({
+        workspaces: [...state.workspaces, workspace]
+      })),
+      deleteWorkspace: (name) => set(state => {
+        const filteredWorkspaces = state.workspaces.filter(w => w.name !== name);
+        // If we're deleting the active workspace, switch to another one
+        const newActiveWorkspace = name === state.activeWorkspace 
+          ? filteredWorkspaces[0]?.name || ''
+          : state.activeWorkspace;
+        
+        return {
+          workspaces: filteredWorkspaces,
+          activeWorkspace: newActiveWorkspace
+        };
+      }),
+      updateWorkspace: (name, files) => set(state => ({
+        workspaces: state.workspaces.map(w =>
+          w.name === name ? { ...w, files } : w
+        )
+      })),
+
+      addFile: (path, content) => set(state => {
+        const { workspaces, activeWorkspace } = state;
+        const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
+        if (workspaceIndex === -1) return state;
+
+        const workspace = workspaces[workspaceIndex];
+        const updatedFiles = updateFileNode([...workspace.files], path, content, true);
+
+        return {
+          workspaces: workspaces.map((w, i) =>
+            i === workspaceIndex ? { ...w, files: updatedFiles } : w
+          )
+        };
+      }),
+
+      updateFile: (path, content) => set(state => {
+        const { workspaces, activeWorkspace } = state;
+        const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
+        if (workspaceIndex === -1) return state;
+
+        const workspace = workspaces[workspaceIndex];
+        const updatedFiles = updateFileNode([...workspace.files], path, content, false);
+
+        return {
+          workspaces: workspaces.map((w, i) =>
+            i === workspaceIndex ? { ...w, files: updatedFiles } : w
+          )
+        };
+      }),
+
+      deleteFile: (path) => set(state => {
+        const { workspaces, activeWorkspace } = state;
+        const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
+        if (workspaceIndex === -1) return state;
+
+        const workspace = workspaces[workspaceIndex];
+        const updatedFiles = deleteFileNode([...workspace.files], path);
+
+        return {
+          workspaces: workspaces.map((w, i) =>
+            i === workspaceIndex ? { ...w, files: updatedFiles } : w
+          )
+        };
+      }),
+
+      searchFiles: (query) => {
+        const { workspaces, activeWorkspace } = get();
+        const workspace = workspaces.find(w => w.name === activeWorkspace);
+        if (!workspace) return [];
+
+        const results = workspace.files.flatMap(file => searchFiles(file, query));
+        
+        // Sort results by relevance (name matches first)
+        return results.sort((a, b) => {
+          if (a.matches.name && !b.matches.name) return -1;
+          if (!a.matches.name && b.matches.name) return 1;
+          return 0;
+        });
+      },
+    }),
+    {
+      name: 'based-workspace-storage',
+      skipHydration: false,
     }
-  ],
-  activeWorkspace: 'Default Workspace',
-
-  setWorkspaces: (workspaces) => set({ workspaces }),
-  setActiveWorkspace: (name) => set({ activeWorkspace: name }),
-  addWorkspace: (workspace) => set(state => ({
-    workspaces: [...state.workspaces, workspace]
-  })),
-  updateWorkspace: (name, files) => set(state => ({
-    workspaces: state.workspaces.map(w =>
-      w.name === name ? { ...w, files } : w
-    )
-  })),
-
-  addFile: (path, content) => set(state => {
-    const { workspaces, activeWorkspace } = state;
-    const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
-    if (workspaceIndex === -1) return state;
-
-    const workspace = workspaces[workspaceIndex];
-    const updatedFiles = updateFileNode([...workspace.files], path, content, true);
-
-    return {
-      workspaces: workspaces.map((w, i) =>
-        i === workspaceIndex ? { ...w, files: updatedFiles } : w
-      )
-    };
-  }),
-
-  updateFile: (path, content) => set(state => {
-    const { workspaces, activeWorkspace } = state;
-    const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
-    if (workspaceIndex === -1) return state;
-
-    const workspace = workspaces[workspaceIndex];
-    const updatedFiles = updateFileNode([...workspace.files], path, content, false);
-
-    return {
-      workspaces: workspaces.map((w, i) =>
-        i === workspaceIndex ? { ...w, files: updatedFiles } : w
-      )
-    };
-  }),
-
-  deleteFile: (path) => set(state => {
-    const { workspaces, activeWorkspace } = state;
-    const workspaceIndex = workspaces.findIndex(w => w.name === activeWorkspace);
-    if (workspaceIndex === -1) return state;
-
-    const workspace = workspaces[workspaceIndex];
-    const updatedFiles = deleteFileNode([...workspace.files], path);
-
-    return {
-      workspaces: workspaces.map((w, i) =>
-        i === workspaceIndex ? { ...w, files: updatedFiles } : w
-      )
-    };
-  }),
-
-  searchFiles: (query) => {
-    const { workspaces, activeWorkspace } = get();
-    const workspace = workspaces.find(w => w.name === activeWorkspace);
-    if (!workspace) return [];
-
-    const results = workspace.files.flatMap(file => searchFiles(file, query));
-    
-    // Sort results by relevance (name matches first)
-    return results.sort((a, b) => {
-      if (a.matches.name && !b.matches.name) return -1;
-      if (!a.matches.name && b.matches.name) return 1;
-      return 0;
-    });
-  },
-})); 
+  )
+); 

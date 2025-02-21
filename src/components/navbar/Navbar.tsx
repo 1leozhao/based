@@ -11,14 +11,17 @@ import { useRef, useState, useEffect } from 'react';
 import { useViewStore } from '@/store/viewStore';
 import BaseLogo from '@/assets/base-logo.svg';
 import Image from 'next/image';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 
 export default function Navbar() {
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
-  const { activeFileId, newFile, openFile, saveFile, undo, redo, compile, deploy } = useEditorStore();
+  const { activeFileId, newFile, openFile, saveFile, undo, redo, compile } = useEditorStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [showDisconnect, setShowDisconnect] = useState(false);
+  const walletButtonRef = useRef<HTMLDivElement>(null);
 
   const {
     toggleExplorer,
@@ -34,13 +37,24 @@ export default function Navbar() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (walletButtonRef.current && !walletButtonRef.current.contains(event.target as Node)) {
+        setShowDisconnect(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const displayAddress = address 
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : '';
 
-  const handleConnection = () => {
+  const handleWalletClick = () => {
     if (isConnected) {
-      disconnect();
+      setShowDisconnect(!showDisconnect);
     } else {
       connect({ connector: injected({ target: 'metaMask' }) });
     }
@@ -55,7 +69,10 @@ export default function Navbar() {
     if (!file) return;
 
     const content = await file.text();
-    openFile(file.name, content);
+    const fileName = file.name;
+    
+    // Add file to workspace and open it
+    openFile(fileName, content);
   };
 
   const handleSave = () => {
@@ -82,19 +99,12 @@ export default function Navbar() {
     }
   };
 
-  const handleDeploy = async () => {
-    if (activeFileId) {
-      await deploy();
-    }
-  };
-
   const fileMenuItems = [
     { label: 'New File', shortcut: '⌘N', onClick: newFile },
     { label: 'Open File...', shortcut: '⌘O', onClick: handleFileOpen },
     { label: 'Save', shortcut: '⌘S', onClick: handleSave },
     { divider: true as const },
     { label: 'Compile', shortcut: '⌘B', onClick: handleCompile },
-    { label: 'Deploy', shortcut: '⌘⇧D', onClick: handleDeploy },
   ];
 
   const editMenuItems = [
@@ -149,12 +159,28 @@ export default function Navbar() {
           </div>
 
           <NetworkSelector />
-          <button
-            onClick={handleConnection}
-            className="px-4 py-2 rounded-lg bg-[var(--primary-color)] text-white hover:bg-[var(--primary-color-hover)] transition-colors"
-          >
-            {isConnected && mounted ? displayAddress : 'Connect Wallet'}
-          </button>
+          <div className="relative" ref={walletButtonRef}>
+            <button
+              onClick={handleWalletClick}
+              className="px-4 py-2 rounded-lg bg-[var(--primary-color)] text-white transition-colors hover:opacity-90 hover:bg-[var(--primary-color)]"
+            >
+              {isConnected && mounted ? displayAddress : 'Connect Wallet'}
+            </button>
+            
+            {showDisconnect && isConnected && (
+              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-[var(--navbar-bg)] border border-[var(--border-color)] z-50">
+                <button
+                  onClick={() => {
+                    disconnect();
+                    setShowDisconnect(false);
+                  }}
+                  className="w-full px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] text-left"
+                >
+                  Disconnect Wallet
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

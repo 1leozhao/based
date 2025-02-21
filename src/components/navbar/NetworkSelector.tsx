@@ -39,7 +39,7 @@ export default function NetworkSelector() {
   };
 
   const getCurrentNetwork = () => {
-    if (!isConnected) return '';
+    if (!isConnected) return 'Not Connected';
     if (chainId === baseSepolia.id) return 'Base Sepolia';
     if (chainId === base.id) return 'Base Mainnet';
     return 'Unknown Network';
@@ -50,17 +50,19 @@ export default function NetworkSelector() {
   return (
     <div className="relative" ref={menuRef}>
       <button
-        className="flex items-center space-x-2 px-3 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] transition-colors"
-        onClick={() => setIsOpen(!isOpen)}
-        title="Select Network"
+        className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg transition-colors ${
+          isConnected ? 'hover:bg-[var(--hover-bg)]' : 'opacity-50 cursor-not-allowed'
+        }`}
+        onClick={() => isConnected && setIsOpen(!isOpen)}
+        title={isConnected ? "Select Network" : "Connect wallet to select network"}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
         </svg>
-        {getCurrentNetwork() && <span className="text-sm">{getCurrentNetwork()}</span>}
+        <span className="text-sm">{getCurrentNetwork()}</span>
       </button>
 
-      {isOpen && (
+      {isOpen && isConnected && (
         <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-[var(--navbar-bg)] border border-[var(--border-color)] z-50">
           <div className="py-1">
             <button

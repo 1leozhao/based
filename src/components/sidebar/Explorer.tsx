@@ -15,8 +15,38 @@ export default function Explorer() {
     activeWorkspace,
     setActiveWorkspace,
     addWorkspace,
-    updateWorkspace
+    updateWorkspace,
+    deleteWorkspace
   } = useWorkspaceStore();
+
+  // Type guard to check if a node is a folder
+  const isFolder = (node: FileNode): node is FileNode & { type: 'folder'; children: FileNode[] } => {
+    return node.type === 'folder' && Array.isArray(node.children);
+  };
+
+  // Helper function to find a node by path
+  const findNodeByPath = (nodes: FileNode[], path: string[]): FileNode[] | FileNode | null => {
+    if (path.length === 0) return nodes;
+    
+    const [current, ...rest] = path;
+    const node = nodes.find((n: FileNode) => n.name === current);
+    
+    if (!node) return null;
+    if (rest.length === 0) return node;
+    if (isFolder(node)) {
+      return findNodeByPath(node.children, rest);
+    }
+    return null;
+  };
+
+  // Helper function to get children of a node or path
+  const getChildren = (nodeOrPath: FileNode[] | FileNode | null): FileNode[] => {
+    if (!nodeOrPath) return [];
+    if (Array.isArray(nodeOrPath)) return nodeOrPath;
+    if (isFolder(nodeOrPath)) return nodeOrPath.children;
+    return [];
+  };
+
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [isCreatingFile, setIsCreatingFile] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -25,6 +55,12 @@ export default function Explorer() {
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState<string | null>(null);
+  const [draggedNode, setDraggedNode] = useState<{ node: FileNode; path: string[] } | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ 
+    path: string[]; 
+    isFolder: boolean;
+    position: 'inside' | 'before' | 'after' | 'root';
+  } | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
@@ -48,6 +84,12 @@ export default function Explorer() {
     setIsCreatingWorkspace(false);
     setCurrentPath(parentPath);
     setNewFileName('');
+    // Expand the parent folder
+    if (parentPath.length > 0) {
+      const newExpanded = new Set(expandedNodes);
+      newExpanded.add(parentPath.join('/'));
+      setExpandedNodes(newExpanded);
+    }
   };
 
   const handleCreateFolder = (parentPath: string[] = []) => {
@@ -56,6 +98,12 @@ export default function Explorer() {
     setIsCreatingWorkspace(false);
     setCurrentPath(parentPath);
     setNewFileName('');
+    // Expand the parent folder
+    if (parentPath.length > 0) {
+      const newExpanded = new Set(expandedNodes);
+      newExpanded.add(parentPath.join('/'));
+      setExpandedNodes(newExpanded);
+    }
   };
 
   const handleCreateWorkspace = () => {
@@ -102,29 +150,13 @@ export default function Explorer() {
 
     if (!currentWorkspace) return;
 
-    // Function to find a node by path
-    const findNodeByPath = (nodes: FileNode[], path: string[]): FileNode[] | null => {
-      if (path.length === 0) return nodes;
-      
-      const [current, ...rest] = path;
-      const folder = nodes.find(n => n.name === current && n.type === 'folder');
-      
-      if (!folder || !folder.children) return null;
-      return findNodeByPath(folder.children, rest);
-    };
-
     // Get the target folder using the path
     const targetFolder = currentPath.length === 0 
       ? currentWorkspace.files 
-      : findNodeByPath(currentWorkspace.files, currentPath);
-
-    if (!targetFolder) {
-      alert('Target folder not found');
-      return;
-    }
+      : getChildren(findNodeByPath(currentWorkspace.files, currentPath));
 
     // Check for duplicates in the target folder
-    if (targetFolder.some(node => node.name === newName)) {
+    if (targetFolder.some((node: FileNode) => node.name === newName)) {
       alert(`A ${isCreatingFile ? 'file' : 'folder'} with this name already exists`);
       setIsCreatingFile(false);
       setIsCreatingFolder(false);
@@ -165,9 +197,10 @@ export default function Explorer() {
     setNewFileName('');
   };
 
-  const handleFileClick = (file: FileNode) => {
+  const handleFileClick = (file: FileNode, path: string[]) => {
     if (file.type === 'file') {
-      openFile(file.name, file.content || '');
+      const fullPath = [...path, file.name].join('/');
+      openFile(fullPath, file.content || '');
     }
   };
 
@@ -195,30 +228,14 @@ export default function Explorer() {
     }
   };
 
-  const toggleFolder = (node: FileNode, path: string[]) => {
-    if (!currentWorkspace) return;
-    const toggleNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
-      if (path.length === 0) {
-        return nodes.map(n => 
-          n.name === node.name && n.type === 'folder'
-            ? { ...n, isExpanded: !n.isExpanded }
-            : n
-        );
-      }
-
-      const [current, ...rest] = path;
-      return nodes.map(n => {
-        if (n.name === current && n.type === 'folder') {
-          return {
-            ...n,
-            children: toggleNodeAtPath(n.children || [], rest)
-          };
-        }
-        return n;
-      });
-    };
-
-    updateWorkspace(currentWorkspace.name, toggleNodeAtPath(currentWorkspace.files, path));
+  const toggleNode = (path: string) => {
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(path)) {
+      newExpanded.delete(path);
+    } else {
+      newExpanded.add(path);
+    }
+    setExpandedNodes(newExpanded);
   };
 
   const BlankFileIcon = () => (
@@ -262,33 +279,322 @@ export default function Explorer() {
 
   const isNodeExpanded = (path: string) => expandedNodes.has(path);
 
-  const toggleNode = (path: string) => {
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(path)) {
-      newExpanded.delete(path);
-    } else {
-      newExpanded.add(path);
+  const handleDragStart = (e: React.DragEvent, node: FileNode, path: string[]) => {
+    e.stopPropagation();
+    setDraggedNode({ node, path });
+    e.dataTransfer.setData('text/plain', node.name); // Required for Firefox
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, path: string[], isFolder: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedNode) return;
+    
+    // Don't allow dropping on itself
+    const dragPath = draggedNode.path.join('/');
+    const dropPath = path.join('/');
+    if (dragPath === dropPath) {
+      e.dataTransfer.dropEffect = 'none';
+      return;
     }
-    setExpandedNodes(newExpanded);
+
+    // Allow dropping into subfolders even if they're siblings
+    if (isFolder && dropPath !== dragPath) {
+      e.dataTransfer.dropEffect = 'move';
+      setDropTarget({ path, isFolder, position: 'inside' });
+      return;
+    }
+
+    e.dataTransfer.dropEffect = 'move';
+
+    // Calculate drop position based on mouse position
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    
+    let position: 'inside' | 'before' | 'after' | 'root' = 'inside';
+    
+    if (isFolder) {
+      // For folders, create three zones: top 25% for before, middle 50% for inside, bottom 25% for after
+      if (y < rect.height * 0.25) {
+        position = 'before';
+      } else if (y > rect.height * 0.75) {
+        position = 'after';
+      } else {
+        position = 'inside';
+      }
+    } else {
+      // For files, just use top/bottom half
+      position = y < rect.height / 2 ? 'before' : 'after';
+    }
+
+    setDropTarget({ path, isFolder, position });
+  };
+
+  // Add root folder drag over handler
+  const handleRootDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedNode) return;
+    
+    e.dataTransfer.dropEffect = 'move';
+    setDropTarget({ path: [], isFolder: true, position: 'root' });
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropTarget(null);
+  };
+
+  // Helper function to move a node in the file tree
+  const moveNode = (nodes: FileNode[], oldPath: string[], newPath: string[]): FileNode[] => {
+    // Remove from old location
+    let nodeToMove: FileNode | undefined;
+    const removeNode = (currentNodes: FileNode[], path: string[]): FileNode[] => {
+      if (path.length === 0) return currentNodes;
+
+      const [current, ...rest] = path;
+      if (rest.length === 0) {
+        nodeToMove = currentNodes.find(n => n.name === current);
+        return currentNodes.filter(n => n.name !== current);
+      }
+
+      return currentNodes.map(node => {
+        if (node.name === current && node.type === 'folder') {
+          return {
+            ...node,
+            children: removeNode(node.children || [], rest)
+          };
+        }
+        return node;
+      });
+    };
+
+    // Add to new location
+    const addNode = (currentNodes: FileNode[], path: string[]): FileNode[] => {
+      if (!nodeToMove) return currentNodes;
+      if (path.length === 0) return [...currentNodes, nodeToMove];
+
+      const [current, ...rest] = path;
+      return currentNodes.map(node => {
+        if (node.name === current && node.type === 'folder') {
+          return {
+            ...node,
+            children: addNode(node.children || [], rest)
+          };
+        }
+        return node;
+      });
+    };
+
+    const filesAfterRemoval = removeNode(nodes, oldPath);
+    return addNode(filesAfterRemoval, newPath.slice(0, -1));
+  };
+
+  // Helper function to delete a node at path
+  const deleteNodeAtPath = (nodes: FileNode[], path: string[]): FileNode[] => {
+    if (path.length === 0) return nodes;
+
+    const [current, ...rest] = path;
+    if (rest.length === 0) {
+      return nodes.filter(n => n.name !== current);
+    }
+
+    return nodes.map(node => {
+      if (node.name === current && node.type === 'folder') {
+        return {
+          ...node,
+          children: deleteNodeAtPath(node.children || [], rest)
+        };
+      }
+      return node;
+    });
+  };
+
+  const handleDrop = (e: React.DragEvent, targetPath: string[], isTargetFolder: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!draggedNode || !currentWorkspace || !dropTarget) return;
+
+    const { node: draggedFile, path: sourcePath } = draggedNode;
+    
+    // Don't allow dropping on itself or its children
+    const dragPathStr = sourcePath.join('/');
+    const dropPathStr = targetPath.join('/');
+    if (dragPathStr === dropPathStr || dropPathStr.startsWith(dragPathStr + '/')) {
+      setDraggedNode(null);
+      setDropTarget(null);
+      return;
+    }
+
+    // Calculate the new path based on drop position
+    let parentPath: string[];
+    let insertIndex: number;
+
+    if (dropTarget.position === 'root') {
+      // Dropping at root level
+      parentPath = [];
+      insertIndex = currentWorkspace.files.length;
+    } else if (dropTarget.position === 'inside' && isTargetFolder) {
+      // Dropping inside a folder
+      parentPath = targetPath;
+      const targetNode = findNodeByPath(currentWorkspace.files, targetPath);
+      if (targetNode && !Array.isArray(targetNode) && isFolder(targetNode)) {
+        insertIndex = targetNode.children?.length || 0;
+        // Expand the target folder
+        const newExpanded = new Set(expandedNodes);
+        newExpanded.add(targetPath.join('/'));
+        setExpandedNodes(newExpanded);
+      } else {
+        // If target is not a valid folder, drop at root
+        parentPath = [];
+        insertIndex = currentWorkspace.files.length;
+      }
+    } else {
+      // Dropping before or after an item
+      parentPath = targetPath.slice(0, -1);
+      const siblings = parentPath.length === 0 
+        ? currentWorkspace.files 
+        : getChildren(findNodeByPath(currentWorkspace.files, parentPath));
+      
+      if (Array.isArray(siblings)) {
+        const targetIndex = siblings.findIndex(n => n.name === targetPath[targetPath.length - 1]);
+        insertIndex = dropTarget.position === 'before' ? targetIndex : targetIndex + 1;
+      } else {
+        // Fallback to root if siblings can't be found
+        parentPath = [];
+        insertIndex = currentWorkspace.files.length;
+      }
+    }
+
+    // Move the node to its new position
+    const updatedFiles = moveNodeToIndex(
+      currentWorkspace.files,
+      [...sourcePath, draggedFile.name], // Include the node name in source path
+      parentPath,
+      draggedFile.name,
+      insertIndex
+    );
+
+    if (updatedFiles) {
+      updateWorkspace(currentWorkspace.name, updatedFiles);
+    }
+
+    setDraggedNode(null);
+    setDropTarget(null);
+  };
+
+  // Helper function to move a node to a specific index
+  const moveNodeToIndex = (
+    nodes: FileNode[], 
+    sourcePath: string[], 
+    targetParentPath: string[],
+    nodeName: string,
+    targetIndex: number
+  ): FileNode[] | null => {
+    if (!currentWorkspace) return null;
+
+    // First find and store the source node
+    const sourceNode = findNodeByPath(nodes, sourcePath);
+    if (!sourceNode || Array.isArray(sourceNode)) return null;
+
+    // Create a clean copy of the source node
+    const cleanSourceNode = { ...sourceNode };
+
+    // Function to remove node from its original location
+    const removeFromSource = (currentNodes: FileNode[], path: string[]): FileNode[] => {
+      if (path.length === 0) {
+        return currentNodes.filter(n => n.name !== nodeName);
+      }
+
+      const [current, ...rest] = path;
+      return currentNodes.map(node => {
+        if (node.name === current && node.type === 'folder') {
+          return {
+            ...node,
+            children: removeFromSource(node.children || [], rest)
+          };
+        }
+        return node;
+      });
+    };
+
+    // Function to insert node at the target location
+    const insertAtTarget = (currentNodes: FileNode[], path: string[]): FileNode[] => {
+      if (path.length === 0) {
+        // Insert at root level
+        const newNodes = [...currentNodes];
+        const actualIndex = Math.min(targetIndex, newNodes.length);
+        newNodes.splice(actualIndex, 0, cleanSourceNode);
+        return newNodes;
+      }
+
+      const [current, ...rest] = path;
+      return currentNodes.map(node => {
+        if (node.name === current && node.type === 'folder') {
+          if (rest.length === 0) {
+            // Insert into this folder
+            const newChildren = [...(node.children || [])];
+            const actualIndex = Math.min(targetIndex, newChildren.length);
+            newChildren.splice(actualIndex, 0, cleanSourceNode);
+            return { ...node, children: newChildren };
+          }
+          return {
+            ...node,
+            children: insertAtTarget(node.children || [], rest)
+          };
+        }
+        return node;
+      });
+    };
+
+    // First remove the node from its source location
+    let updatedFiles = removeFromSource(nodes, sourcePath.slice(0, -1));
+    
+    // Then insert it at the target location
+    return insertAtTarget(updatedFiles, targetParentPath);
   };
 
   const renderFileTree = (nodes: FileNode[], path: string[] = []) => {
-    return nodes.map((node) => {
+    return nodes.map((node, index) => {
       const fullPath = [...path, node.name].join('/');
       const isExpanded = isNodeExpanded(fullPath);
       const uniqueKey = [...path, node.name].join('|');
       const fileType = node.type === 'folder' ? 'folder' : getFileType(node.name);
+      const isDropTarget = dropTarget?.path.join('/') === fullPath;
+      const isDragging = draggedNode?.path.join('/') === fullPath;
+      const isDropInside = isDropTarget && dropTarget?.position === 'inside';
 
       return (
         <div key={uniqueKey}>
+          {/* Drop zone before item */}
+          {dropTarget?.path.join('/') === fullPath && dropTarget.position === 'before' && (
+            <div className="h-0.5 bg-[var(--primary-color)] mx-2 rounded-full" />
+          )}
+
           <div
-            className={`flex items-center px-2 py-1 hover:bg-[var(--hover-bg)] rounded-lg cursor-pointer relative group ${
-              hoveredNode === uniqueKey ? 'bg-[var(--hover-bg)]' : ''
-            }`}
+            className={`flex items-center px-2 py-1 rounded-lg cursor-pointer relative group
+            ${isDropInside ? 'outline outline-2 outline-[#0052FF]' : ''} 
+            ${isDragging ? 'opacity-50' : ''}`}
             style={{ paddingLeft: `${path.length * 1.25}rem` }}
-            onClick={() => node.type === 'file' ? handleFileClick(node) : toggleNode(fullPath)}
+            onClick={() => {
+              if (node.type === 'file') {
+                handleFileClick(node, path);
+              } else {
+                toggleNode(fullPath);
+              }
+            }}
             onMouseEnter={() => setHoveredNode(uniqueKey)}
             onMouseLeave={() => setHoveredNode(null)}
+            draggable
+            onDragStart={(e) => handleDragStart(e, node, path)}
+            onDragOver={(e) => handleDragOver(e, [...path, node.name], node.type === 'folder')}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, [...path, node.name], node.type === 'folder')}
           >
             {/* Tree structure lines - only show for non-root items */}
             {path.length > 0 && path.map((_, index) => (
@@ -317,7 +623,7 @@ export default function Explorer() {
                   }`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleFolder(node, path);
+                    toggleNode(fullPath);
                   }}
                   style={{
                     transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'
@@ -330,7 +636,7 @@ export default function Explorer() {
               )}
               
               {/* Action buttons on hover */}
-              {hoveredNode === uniqueKey && (
+              {hoveredNode === uniqueKey && !isDragging && (
                 <div className="flex space-x-1">
                   {node.type === 'folder' && (
                     <button
@@ -367,6 +673,11 @@ export default function Explorer() {
             </div>
           </div>
           
+          {/* Drop zone after item */}
+          {dropTarget?.path.join('/') === fullPath && dropTarget.position === 'after' && (
+            <div className="h-0.5 bg-[var(--primary-color)] mx-2 rounded-full" />
+          )}
+
           {/* Render children for folders */}
           {node.type === 'folder' && node.children && isExpanded && (
             <div className="mt-1">
@@ -437,18 +748,34 @@ export default function Explorer() {
                 >
                   <div className="divide-y divide-[var(--border-color)]">
                     {workspaces.map(workspace => (
-                      <button
+                      <div
                         key={workspace.name}
                         className={`w-full px-3 py-2 text-sm text-left hover:bg-[var(--hover-bg)] ${
                           workspace.name === activeWorkspace ? 'text-[var(--primary-color)]' : 'text-[var(--text-primary)]'
-                        }`}
+                        } group relative flex items-center justify-between cursor-pointer`}
                         onClick={() => {
                           setActiveWorkspace(workspace.name);
                           setIsWorkspaceDropdownOpen(false);
                         }}
                       >
-                        {workspace.name}
-                      </button>
+                        <span>{workspace.name}</span>
+                        {workspaces.length > 1 && (
+                          <button
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500 hover:text-white text-[var(--text-primary)] transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Are you sure you want to delete the workspace "${workspace.name}"?`)) {
+                                deleteWorkspace(workspace.name);
+                              }
+                            }}
+                            title="Delete Workspace"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     ))}
                     {isCreatingWorkspace ? (
                       <form 
@@ -509,9 +836,17 @@ export default function Explorer() {
         )}
       </div>
 
-      {/* File Tree */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-4">
+      {/* File Tree with root drop zone */}
+      <div 
+        className="flex-1 overflow-auto pl-2 pr-4"
+        onDragOver={handleRootDragOver}
+        onDrop={(e) => handleDrop(e, [], true)}
+      >
+        <div 
+          className={`p-4 min-h-[calc(100%-1rem)] mt-2 rounded-lg ${
+            dropTarget?.position === 'root' ? 'outline outline-2 outline-[#0052FF]' : ''
+          }`}
+        >
           {currentWorkspace && (
             <>
               {renderFileTree(currentWorkspace.files)}
