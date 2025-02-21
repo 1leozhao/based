@@ -167,13 +167,14 @@ export default function Navbar() {
             </button>
             
             {showDisconnect && isConnected && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-[var(--navbar-bg)] border border-[var(--border-color)] z-50">
+              <div className="absolute right-0 mt-[44px] inline-flex rounded-md shadow-lg bg-[var(--navbar-bg)] border border-[var(--border-color)] z-50">
                 <button
                   onClick={() => {
                     disconnect();
                     setShowDisconnect(false);
                   }}
-                  className="w-full px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)] text-left"
+                  className="px-4 py-2 text-sm whitespace-nowrap text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                  title="Disconnect Wallet"
                 >
                   Disconnect Wallet
                 </button>

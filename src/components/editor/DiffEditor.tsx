@@ -35,6 +35,9 @@ export default function DiffEditor() {
           scrollBeyondLastLine: false,
           automaticLayout: true,
           diffWordWrap: 'off',
+          enableSplitViewResizing: false,
+          renderIndicators: false,
+          renderOverviewRuler: false,
         }}
       />
     </div>

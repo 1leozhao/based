@@ -9,7 +9,7 @@ import ResizeHandle from './ResizeHandle';
 import Dropdown from './Dropdown';
 
 export default function Explorer() {
-  const { explorerWidth, setExplorerWidth, openFile } = useEditorStore();
+  const { explorerWidth, setExplorerWidth, openFile, closeAllFiles } = useEditorStore();
   const { 
     workspaces, 
     activeWorkspace,
@@ -136,9 +136,64 @@ export default function Explorer() {
         name: newName,
         files: [
           {
+            name: 'README.md',
+            type: 'file',
+            content: `# ${newName}
+
+## Getting Started
+
+This is a smart contract development workspace. Here's what you'll find:
+
+- \`/contracts\`: Sample contract directory
+  - \`Based.sol\`: A sample contract to get you started
+
+## Development
+
+1. Edit your contracts within the IDE
+2. Use the terminal to compile and deploy your contracts
+3. Run \`help\` in the terminal for available commands
+
+## Support
+
+Built with ♥ on Base`
+          },
+          {
             name: 'contracts',
             type: 'folder',
-            children: []
+            children: [
+              {
+                name: 'Based.sol',
+                type: 'file',
+                content: `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+contract Based {
+    string public message;
+    address public owner;
+    
+    event MessageUpdated(string newMessage);
+    
+    constructor() {
+        message = "Hello, Base!";
+        owner = msg.sender;
+    }
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not the owner");
+        _;
+    }
+    
+    function updateMessage(string memory newMessage) public onlyOwner {
+        message = newMessage;
+        emit MessageUpdated(newMessage);
+    }
+    
+    function getMessage() public view returns (string memory) {
+        return message;
+    }
+}`
+              }
+            ]
           }
         ]
       });
@@ -723,6 +778,7 @@ export default function Explorer() {
                           workspace.name === activeWorkspace ? 'text-[var(--primary-color)]' : 'text-[var(--text-primary)]'
                         } group relative flex items-center justify-between cursor-pointer`}
                         onClick={() => {
+                          closeAllFiles();
                           setActiveWorkspace(workspace.name);
                           setIsWorkspaceDropdownOpen(false);
                         }}
