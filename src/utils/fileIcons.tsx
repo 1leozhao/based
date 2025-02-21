@@ -34,6 +34,18 @@ export const getFileIcon = (fileType: string): React.ReactElement => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 3c-1.5 0-3 1-3 3v12c0 2 1.5 3 3 3M16 3c1.5 0 3 1 3 3v12c0 2-1.5 3-3 3" />
         </svg>
       );
+    case 'js':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 3h18v18H3V3zm16.5 10.5c-.6-2.1-3.3-2.1-4.2-.3l-1.2 2.4c-.3.6-1.2.6-1.5 0l-1.2-2.4c-.9-1.8-3.6-1.8-4.2.3-.6 2.1 1.5 3.9 3.3 3l1.2-2.4c.3-.6 1.2-.6 1.5 0l1.2 2.4c1.8.9 3.9-.9 3.3-3z" fill="currentColor"/>
+        </svg>
+      );
+    case 'ts':
+      return (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 3h18v18H3V3zm10.5 10.5v-4h-7v2h2.5v6.5h2v-6.5h2.5zm4.5 4.5h-2v-4h-2v-2h6v2h-2v4z" fill="currentColor"/>
+        </svg>
+      );
     case 'txt':
       return (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

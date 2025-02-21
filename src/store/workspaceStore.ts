@@ -196,6 +196,11 @@ contract Based {
 }`
                 }
               ]
+            },
+            {
+              name: 'scripts',
+              type: 'folder',
+              children: []
             }
           ]
         }

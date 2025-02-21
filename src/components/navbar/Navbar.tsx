@@ -189,7 +189,7 @@ export default function Navbar() {
         type="file"
         className="hidden"
         onChange={handleFileChange}
-        accept=".sol,.md,.txt,.json"
+        accept=".sol,.md,.txt,.json,.js,.ts"
       />
     </nav>
   );

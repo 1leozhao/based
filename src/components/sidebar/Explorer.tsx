@@ -142,16 +142,17 @@ export default function Explorer() {
 
 ## Getting Started
 
-This is a smart contract development workspace. Here's what you'll find:
+Based is a Web3 IDE built on Base, for Base.
 
-- \`/contracts\`: Sample contract directory
-  - \`Based.sol\`: A sample contract to get you started
+## Supported Libraries
+
+- ethers.js (v6)
+- web3.js
 
 ## Development
 
-1. Edit your contracts within the IDE
-2. Use the terminal to compile and deploy your contracts
-3. Run \`help\` in the terminal for available commands
+1. Use the terminal to compile and deploy your contracts
+2. Run \`help\` in the terminal for available commands
 
 ## Support
 
@@ -192,6 +193,43 @@ contract Based {
         return message;
     }
 }`
+              }
+            ]
+          },
+          {
+            name: 'scripts',
+            type: 'folder',
+            children: [
+              {
+                name: 'deploy.js',
+                type: 'file',
+                content: `const { ethers } = require('ethers');
+
+async function main() {
+    // Get the contract factory
+    const Based = await ethers.getContractFactory("Based");
+    
+    // Deploy the contract
+    const based = await Based.deploy();
+    await based.deployed();
+    
+    console.log("Based contract deployed to:", based.address);
+    
+    // Update the message
+    const tx = await based.updateMessage("Hello from JavaScript!");
+    await tx.wait();
+    
+    // Get the new message
+    const message = await based.getMessage();
+    console.log("New message:", message);
+}
+
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });`
               }
             ]
           }
